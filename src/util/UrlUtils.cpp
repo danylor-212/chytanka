@@ -1,6 +1,8 @@
 #include "UrlUtils.h"
 
+#include <cctype>
 #include <cstdio>
+#include <utility>
 
 namespace UrlUtils {
 namespace {
@@ -68,29 +70,112 @@ std::string encodeUnsafeUrlChars(const std::string& url) {
   return out;
 }
 
+namespace {
+
+bool hasScheme(const std::string& ref) {
+  // RFC 3986 scheme: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":"
+  if (ref.empty() || !std::isalpha(static_cast<unsigned char>(ref[0]))) return false;
+  for (size_t i = 1; i < ref.size(); ++i) {
+    const char c = ref[i];
+    if (c == ':') return true;
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '+' && c != '-' && c != '.') return false;
+  }
+  return false;
+}
+
+// RFC 3986 section 5.2.4 remove_dot_segments, for a path without query.
+std::string removeDotSegments(const std::string& path) {
+  std::string output;
+  size_t i = 0;
+  while (i < path.size()) {
+    if (path.compare(i, 3, "../") == 0) {
+      i += 3;
+    } else if (path.compare(i, 2, "./") == 0) {
+      i += 2;
+    } else if (path.compare(i, 3, "/./") == 0) {
+      i += 2;
+    } else if (i + 2 == path.size() && path.compare(i, 2, "/.") == 0) {
+      output += '/';
+      break;
+    } else if (path.compare(i, 4, "/../") == 0 || (i + 3 == path.size() && path.compare(i, 3, "/..") == 0)) {
+      const bool last = path.compare(i, 4, "/../") != 0;
+      const size_t slash = output.rfind('/');
+      output.resize(slash == std::string::npos ? 0 : slash);
+      if (last) {
+        output += '/';
+        break;
+      }
+      i += 3;
+    } else if ((i + 1 == path.size() && path[i] == '.') || (i + 2 == path.size() && path.compare(i, 2, "..") == 0)) {
+      break;
+    } else {
+      const size_t next = path.find('/', i + 1);
+      const size_t segmentEnd = next == std::string::npos ? path.size() : next;
+      output.append(path, i, segmentEnd - i);
+      i = segmentEnd;
+    }
+  }
+  return output;
+}
+
+// Splits "path?query#fragment" into the path and the "?query" suffix (the
+// fragment is dropped: it never reaches the server).
+void splitPathAndQuery(const std::string& ref, std::string& path, std::string& query) {
+  std::string withoutFragment = ref.substr(0, ref.find('#'));
+  const size_t queryPos = withoutFragment.find('?');
+  if (queryPos == std::string::npos) {
+    path = std::move(withoutFragment);
+    query.clear();
+  } else {
+    path = withoutFragment.substr(0, queryPos);
+    query = withoutFragment.substr(queryPos);
+  }
+}
+
+}  // namespace
+
 std::string buildUrl(const std::string& serverUrl, const std::string& path) {
-  // If path is already an absolute URL (has protocol), use it directly
-  if (path.find("://") != std::string::npos) {
+  // RFC 3986 section 5.2 reference resolution for the reference forms OPDS
+  // feeds use. `serverUrl` is the base (the feed the href came from).
+  if (hasScheme(path)) {
     return encodeUnsafeUrlChars(path);
   }
-  const std::string urlWithProtocol = ensureProtocol(serverUrl);
+  const std::string base = ensureProtocol(serverUrl);
   if (path.empty()) {
-    return encodeUnsafeUrlChars(urlWithProtocol);
+    return encodeUnsafeUrlChars(base);
   }
-  if (path[0] == '/') {
-    // Absolute path - use just the host
-    return encodeUnsafeUrlChars(extractHost(urlWithProtocol) + path);
+  const size_t schemeEnd = base.find("://");
+  if (path.compare(0, 2, "//") == 0) {
+    // Scheme-relative: keep the base's scheme.
+    return encodeUnsafeUrlChars(base.substr(0, schemeEnd + 1) + path);
   }
-  // Relative path - strip query string from base before appending
-  std::string base = urlWithProtocol;
-  const size_t queryPos = base.find('?');
-  if (queryPos != std::string::npos) {
-    base.resize(queryPos);
+
+  const std::string origin = extractHost(base);  // scheme://authority
+  std::string basePath;
+  std::string baseQuery;
+  splitPathAndQuery(base.substr(origin.size()), basePath, baseQuery);
+  if (basePath.empty()) basePath = "/";
+
+  if (path[0] == '?') {
+    return encodeUnsafeUrlChars(origin + basePath + path.substr(0, path.find('#')));
   }
-  if (base.back() == '/') {
-    return encodeUnsafeUrlChars(base + path);
+  if (path[0] == '#') {
+    return encodeUnsafeUrlChars(origin + basePath + baseQuery);
   }
-  return encodeUnsafeUrlChars(base + "/" + path);
+
+  std::string refPath;
+  std::string refQuery;
+  splitPathAndQuery(path, refPath, refQuery);
+  std::string merged;
+  if (refPath[0] == '/') {
+    merged = refPath;
+  } else {
+    // Path-relative: resolve against the base's directory (everything up to
+    // and including its last '/'), so ".../opds/index.xml" + "books/a.epub"
+    // becomes ".../opds/books/a.epub".
+    merged = basePath.substr(0, basePath.rfind('/') + 1) + refPath;
+  }
+  return encodeUnsafeUrlChars(origin + removeDotSegments(merged) + refQuery);
 }
 
 }  // namespace UrlUtils

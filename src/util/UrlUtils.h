@@ -24,9 +24,12 @@ std::string extractHost(const std::string& url);
 std::string encodeUnsafeUrlChars(const std::string& url);
 
 /**
- * Build full URL from server URL and path.
- * If path starts with /, it's an absolute path from the host root.
- * Otherwise, it's relative to the server URL.
+ * Resolve `path` (an href from a feed) against the base URL `serverUrl`, as
+ * RFC 3986 section 5.2 does: absolute URLs are kept, "//host/..." takes the
+ * base's scheme, "/path" is relative to the host root, "?query" replaces the
+ * base's query, and anything else is relative to the base's directory, with
+ * "." and ".." segments resolved. Queries in `path` are kept. A base without
+ * a scheme is treated as http://.
  */
 std::string buildUrl(const std::string& serverUrl, const std::string& path);
 
