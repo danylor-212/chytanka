@@ -357,7 +357,7 @@ bool TxtReaderActivity::changeReaderFontSize(const bool larger, const FontSizeSt
 
 void TxtReaderActivity::cycleReaderFont() {
   const CrossPointSettings::FONT_SIZE effectiveSize = SETTINGS.getEffectiveReaderFontSize();
-  SETTINGS.fontFamily = (SETTINGS.fontFamily + 1) % CrossPointSettings::FONT_FAMILY_COUNT;
+  SETTINGS.fontFamily = CrossPointSettings::nextBuiltinFont(SETTINGS.fontFamily);
   SETTINGS.sdFontFamilyName[0] = '\0';
   SETTINGS.readerFontPointSize = CrossPointSettings::getReaderFontPointSize(effectiveSize);
   rebuildTextLayout();

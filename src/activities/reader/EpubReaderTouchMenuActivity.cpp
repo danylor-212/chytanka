@@ -399,13 +399,13 @@ void EpubReaderTouchMenuActivity::discoverFonts() {
   const auto& families = sdFontSystem.registry().getFamilies();
   fontLabels.clear();
   fontSettingIndexes.clear();
-  fontLabels.reserve(CrossPointSettings::BUILTIN_FONT_COUNT + families.size());
-  fontSettingIndexes.reserve(CrossPointSettings::BUILTIN_FONT_COUNT + families.size());
+  fontLabels.reserve(CrossPointSettings::PICKER_BUILTIN_FONT_COUNT + families.size());
+  fontSettingIndexes.reserve(CrossPointSettings::PICKER_BUILTIN_FONT_COUNT + families.size());
   constexpr FontFamilyPointSizeRange builtinRange{10, 16};
-  fontLabels.push_back(fontFamilyLabel(tr(STR_LEXEND_DECA), builtinRange));
-  fontLabels.push_back(fontFamilyLabel(tr(STR_BITTER), builtinRange));
-  fontSettingIndexes.push_back(0);
-  fontSettingIndexes.push_back(1);
+  for (const uint8_t family : CrossPointSettings::PICKER_BUILTIN_FONTS) {
+    fontLabels.push_back(fontFamilyLabel(I18N.get(builtinFontFamilyNameId(family)), builtinRange));
+    fontSettingIndexes.push_back(family);
+  }
   for (size_t i = 0; i < families.size(); ++i) {
     fontLabels.push_back(fontFamilyLabel(families[i].name, fontFamilyPointSizeRange(families[i])));
     fontSettingIndexes.push_back(static_cast<uint8_t>(CrossPointSettings::BUILTIN_FONT_COUNT + i));
@@ -1073,10 +1073,11 @@ void EpubReaderTouchMenuActivity::buildFontFamilyPane(UiApp::ScreenType& screen)
       });
       if (selected != families.end()) {
         selectedFontIndex =
-            static_cast<int>(CrossPointSettings::BUILTIN_FONT_COUNT + std::distance(families.begin(), selected));
+            static_cast<int>(CrossPointSettings::PICKER_BUILTIN_FONT_COUNT + std::distance(families.begin(), selected));
       }
     } else {
-      const auto selected = std::find(fontSettingIndexes.begin(), fontSettingIndexes.end(), draft.fontFamily);
+      const auto selected = std::find(fontSettingIndexes.begin(), fontSettingIndexes.end(),
+                                      CrossPointSettings::availableBuiltinFont(draft.fontFamily));
       if (selected != fontSettingIndexes.end()) {
         selectedFontIndex = static_cast<int>(std::distance(fontSettingIndexes.begin(), selected));
       }
@@ -2145,10 +2146,8 @@ const char* EpubReaderTouchMenuActivity::rowValue(const RowId row, char* buffer,
   switch (row) {
     case RowId::FontFamily: {
       if (draft.sdFontFamilyName[0] != '\0') return draft.sdFontFamilyName.data();
-      static constexpr std::array<StrId, CrossPointSettings::BUILTIN_FONT_COUNT> labels = {StrId::STR_LEXEND_DECA,
-                                                                                           StrId::STR_BITTER};
-      if (draft.fontFamily >= labels.size()) return tr(STR_UNAVAILABLE);
-      return I18N.get(labels[draft.fontFamily]);
+      if (draft.fontFamily >= CrossPointSettings::BUILTIN_FONT_COUNT) return tr(STR_UNAVAILABLE);
+      return I18N.get(builtinFontFamilyNameId(CrossPointSettings::availableBuiltinFont(draft.fontFamily)));
     }
     case RowId::FontSize:
       std::snprintf(buffer, bufferSize, tr(STR_POINT_SIZE_COMPACT_FMT),

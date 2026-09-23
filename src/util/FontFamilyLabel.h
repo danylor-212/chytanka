@@ -15,6 +15,11 @@ struct FontFamilyPointSizeRange {
   bool isValid() const { return first != 0; }
 };
 
+// Name of a built-in reader font family (CrossPointSettings::FONT_FAMILY).
+inline StrId builtinFontFamilyNameId(const uint8_t family) {
+  return family == 1 ? StrId::STR_BITTER : StrId::STR_LEXEND_DECA;
+}
+
 inline FontFamilyPointSizeRange fontFamilyPointSizeRange(const SdCardFontFamilyInfo& family) {
   if (family.firstSize) return {family.firstSize, family.lastSize};
   FontFamilyPointSizeRange range;

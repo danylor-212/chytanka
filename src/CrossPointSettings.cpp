@@ -127,7 +127,7 @@ CrossPointSettings::FONT_SIZE firstAvailableReaderFontSize() {
 }
 
 int getFallbackReaderFontIdForFamily(const CrossPointSettings::FONT_FAMILY family) {
-  switch (family) {
+  switch (CrossPointSettings::availableBuiltinFont(family)) {
     case CrossPointSettings::BITTER:
       return BITTER_10_FONT_ID;
     case CrossPointSettings::LEXENDDECA:
@@ -729,7 +729,7 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
   validateReaderFrontButtonMapping(*this);
 
   const uint8_t storedFontFamily = doc["fontFamily"] | static_cast<uint8_t>(0);
-  fontFamily = clamp(storedFontFamily, BUILTIN_FONT_COUNT, 0);
+  fontFamily = availableBuiltinFont(storedFontFamily);
   const char* sdFamily = doc["sdFontFamilyName"] | "";
   strncpy(sdFontFamilyName, sdFamily, sizeof(sdFontFamilyName) - 1);
   sdFontFamilyName[sizeof(sdFontFamilyName) - 1] = '\0';
@@ -760,7 +760,7 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
     quickActionsTrigger = static_cast<uint8_t>(QuickActions::Trigger::None);
     needsResave = true;
   }
-  if (storedFontFamily >= BUILTIN_FONT_COUNT) needsResave = true;
+  if (!isBuiltinFontAvailable(storedFontFamily)) needsResave = true;
   if (doc["lineHeightPercent"].isNull() && !doc["lineSpacing"].isNull()) {
     const uint8_t legacySpacing =
         clamp(doc["lineSpacing"] | static_cast<uint8_t>(NORMAL), LINE_COMPRESSION_COUNT, static_cast<uint8_t>(NORMAL));
@@ -920,7 +920,7 @@ bool CrossPointSettings::loadFromBinaryFile() {
       uint8_t legacyFontFamily;
       serialization::readPod(inputFile, legacyFontFamily);
       if (legacyFontFamily < BUILTIN_FONT_COUNT) {
-        fontFamily = legacyFontFamily;
+        fontFamily = availableBuiltinFont(legacyFontFamily);
       }
     }
     if (++settingsRead >= fileSettingsCount) break;
@@ -1186,7 +1186,7 @@ int CrossPointSettings::getReaderFontId() const {
 int CrossPointSettings::getBuiltInReaderFontId() const {
   const FONT_SIZE effectiveSize = getEffectiveReaderFontSize();
 
-  switch (fontFamily) {
+  switch (availableBuiltinFont(fontFamily)) {
     case LEXENDDECA:
     default:
       switch (effectiveSize) {

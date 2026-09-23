@@ -1434,13 +1434,13 @@ void CrossPointWebServer::handleGetSettings() const {
       case SettingType::ENUM: {
         doc["type"] = "enum";
         if (s.nameId == StrId::STR_FONT_FAMILY && !fontFamilies.empty()) {
-          uint8_t selected = SETTINGS.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.fontFamily : 0;
+          uint8_t selected = CrossPointSettings::builtinFontPickerIndex(SETTINGS.fontFamily);
           if (selectedSdFamily) {
             const auto it = std::find_if(
                 fontFamilies.begin(), fontFamilies.end(),
                 [](const SdCardFontFamilyInfo& family) { return family.name == SETTINGS.sdFontFamilyName; });
             if (it != fontFamilies.end()) {
-              selected = static_cast<uint8_t>(CrossPointSettings::BUILTIN_FONT_COUNT +
+              selected = static_cast<uint8_t>(CrossPointSettings::PICKER_BUILTIN_FONT_COUNT +
                                               std::distance(fontFamilies.begin(), it));
             }
           }
@@ -1458,8 +1458,9 @@ void CrossPointWebServer::handleGetSettings() const {
         JsonArray options = doc["options"].to<JsonArray>();
         if (s.nameId == StrId::STR_FONT_FAMILY && !fontFamilies.empty()) {
           constexpr FontFamilyPointSizeRange builtinRange{10, 16};
-          options.add(fontFamilyLabel(I18N.get(StrId::STR_LEXEND_DECA), builtinRange));
-          options.add(fontFamilyLabel(I18N.get(StrId::STR_BITTER), builtinRange));
+          for (const uint8_t family : CrossPointSettings::PICKER_BUILTIN_FONTS) {
+            options.add(fontFamilyLabel(I18N.get(builtinFontFamilyNameId(family)), builtinRange));
+          }
           for (const auto& family : fontFamilies) {
             options.add(fontFamilyLabel(family.name, fontFamilyPointSizeRange(family)));
           }

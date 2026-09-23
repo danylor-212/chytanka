@@ -71,12 +71,12 @@ int findCurrentFontIndex(const SdCardFontRegistry* registry, const char* sdFontF
     const auto& families = registry->getFamilies();
     for (int i = 0; i < static_cast<int>(families.size()); i++) {
       if (families[i].name == sdFontFamilyName) {
-        return CrossPointSettings::BUILTIN_FONT_COUNT + i;
+        return CrossPointSettings::PICKER_BUILTIN_FONT_COUNT + i;
       }
     }
   }
 
-  return fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? fontFamily : 0;
+  return CrossPointSettings::builtinFontPickerIndex(fontFamily);
 }
 }  // namespace
 
@@ -103,11 +103,12 @@ void FontSelectionActivity::onEnter() {
   originalSdFontFamilyName_[sizeof(originalSdFontFamilyName_) - 1] = '\0';
 
   fonts_.clear();
-  fonts_.reserve(CrossPointSettings::BUILTIN_FONT_COUNT + (registry_ ? registry_->getFamilyCount() : 0));
+  fonts_.reserve(CrossPointSettings::PICKER_BUILTIN_FONT_COUNT + (registry_ ? registry_->getFamilyCount() : 0));
 
   constexpr FontFamilyPointSizeRange builtinRange{10, 16};
-  fonts_.push_back({fontFamilyLabel(I18N.get(StrId::STR_LEXEND_DECA), builtinRange), true, 0});
-  fonts_.push_back({fontFamilyLabel(I18N.get(StrId::STR_BITTER), builtinRange), true, 1});
+  for (const uint8_t family : CrossPointSettings::PICKER_BUILTIN_FONTS) {
+    fonts_.push_back({fontFamilyLabel(I18N.get(builtinFontFamilyNameId(family)), builtinRange), true, family});
+  }
 
   if (registry_) {
     const auto& families = registry_->getFamilies();

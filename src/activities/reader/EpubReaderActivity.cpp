@@ -1141,7 +1141,9 @@ void captureReaderSettings(EpubReaderActivity::ReaderSettingsSnapshot& out) {
 }
 
 void applyReaderSettings(const EpubReaderActivity::ReaderSettingsSnapshot& in) {
-  SETTINGS.fontFamily = in.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? in.fontFamily : SETTINGS.fontFamily;
+  SETTINGS.fontFamily = in.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT
+                            ? CrossPointSettings::availableBuiltinFont(in.fontFamily)
+                            : SETTINGS.fontFamily;
   std::strncpy(SETTINGS.sdFontFamilyName, in.sdFontFamilyName, sizeof(SETTINGS.sdFontFamilyName) - 1);
   SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
   if (in.readerFontPointSize < CrossPointSettings::MIN_READER_FONT_POINT_SIZE) {
@@ -4680,7 +4682,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       break;
     case CrossPointSettings::LONG_MENU_CHANGE_FONT: {
       const CrossPointSettings::FONT_SIZE effectiveSize = SETTINGS.getEffectiveReaderFontSize();
-      SETTINGS.fontFamily = (SETTINGS.fontFamily + 1) % CrossPointSettings::FONT_FAMILY_COUNT;
+      SETTINGS.fontFamily = CrossPointSettings::nextBuiltinFont(SETTINGS.fontFamily);
       SETTINGS.sdFontFamilyName[0] = '\0';
       SETTINGS.readerFontPointSize = CrossPointSettings::getReaderFontPointSize(effectiveSize);
       reindexCurrentSection();

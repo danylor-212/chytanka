@@ -176,6 +176,9 @@ static void logBootHeap(const char* stage) {
 }
 
 // Fonts
+#ifndef CHYTANKA
+// Chytanka builds leave out Lexend Deca (partial Cyrillic); see
+// CrossPointSettings::PICKER_BUILTIN_FONTS.
 EpdFont lexenddeca10RegularFont(&lexenddeca_10_regular);
 EpdFont lexenddeca10BoldFont(&lexenddeca_10_bold);
 EpdFont lexenddeca10ItalicFont(&lexenddeca_10_italic);
@@ -200,6 +203,7 @@ EpdFont lexenddeca16ItalicFont(&lexenddeca_16_italic);
 EpdFont lexenddeca16BoldItalicFont(&lexenddeca_16_bolditalic);
 EpdFontFamily lexenddeca16FontFamily(&lexenddeca16RegularFont, &lexenddeca16BoldFont, &lexenddeca16ItalicFont,
                                      &lexenddeca16BoldItalicFont);
+#endif  // CHYTANKA
 EpdFont bitter10RegularFont(&bitter_10_regular);
 EpdFont bitter10BoldFont(&bitter_10_bold);
 EpdFont bitter10ItalicFont(&bitter_10_italic);
@@ -1144,10 +1148,12 @@ void setupDisplayAndFonts(const bool seamless, const bool loadReaderResources, c
   fontCacheManager.setFontDecompressor(&fontDecompressor);
   renderer.setFontCacheManager(&fontCacheManager);
 
+#ifndef CHYTANKA
   renderer.insertFont(LEXENDDECA_10_FONT_ID, lexenddeca10FontFamily);
   renderer.insertFont(LEXENDDECA_12_FONT_ID, lexenddeca12FontFamily);
   renderer.insertFont(LEXENDDECA_14_FONT_ID, lexenddeca14FontFamily);
   renderer.insertFont(LEXENDDECA_16_FONT_ID, lexenddeca16FontFamily);
+#endif
   renderer.insertFont(BITTER_10_FONT_ID, bitter10FontFamily);
   renderer.insertFont(BITTER_12_FONT_ID, bitter12FontFamily);
   renderer.insertFont(BITTER_14_FONT_ID, bitter14FontFamily);
@@ -1316,10 +1322,9 @@ void setup() {
   SETTINGS.language = static_cast<uint8_t>(Language::CHYTANKA_DEFAULT_LANGUAGE);
 #endif
 #ifdef CHYTANKA
-  // Fork-only reader defaults: Lexend Deca has only a partial Cyrillic subset,
-  // Bitter covers U+0400-045F. A settings file always carries both keys, so a
-  // saved choice wins; new books copy these globals into their per-book state.
-  SETTINGS.fontFamily = CrossPointSettings::BITTER;
+  // Fork-only reader default: hyphenation on until the settings file saves a
+  // choice (new books copy the globals into their per-book state). The
+  // default font, Bitter, comes from CrossPointSettings::DEFAULT_FONT_FAMILY.
   SETTINGS.hyphenationEnabled = 1;
 #endif
   SETTINGS.loadFromFile();

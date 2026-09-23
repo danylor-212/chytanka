@@ -141,11 +141,14 @@ inline uint8_t closestBuiltinFontSizeIndex(const uint8_t targetPointSize) {
 // are appended after the built-in fonts. Otherwise only built-in fonts are listed.
 inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
   // Built-in font labels (StrId)
-  std::vector<StrId> enumValues = {StrId::STR_LEXEND_DECA, StrId::STR_BITTER};
+  std::vector<StrId> enumValues;
+  for (const uint8_t family : CrossPointSettings::PICKER_BUILTIN_FONTS) {
+    enumValues.push_back(builtinFontFamilyNameId(family));
+  }
   // Runtime string labels for SD card fonts
   std::vector<std::string> enumStringValues;
 
-  // Reserve: first CrossPointSettings::BUILTIN_FONT_COUNT entries use StrId, rest use strings
+  // Reserve: first CrossPointSettings::PICKER_BUILTIN_FONT_COUNT entries use StrId, rest use strings
   if (registry) {
     const auto& families = registry->getFamilies();
     enumStringValues.reserve(families.size());
@@ -163,8 +166,9 @@ inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
   std::vector<std::string> allStringValues;
   if (sdFontCount > 0) {
     constexpr FontFamilyPointSizeRange builtinRange{10, 16};
-    allStringValues.push_back(fontFamilyLabel(I18N.get(StrId::STR_LEXEND_DECA), builtinRange));
-    allStringValues.push_back(fontFamilyLabel(I18N.get(StrId::STR_BITTER), builtinRange));
+    for (const uint8_t family : CrossPointSettings::PICKER_BUILTIN_FONTS) {
+      allStringValues.push_back(fontFamilyLabel(I18N.get(builtinFontFamilyNameId(family)), builtinRange));
+    }
     allStringValues.insert(allStringValues.end(), enumStringValues.begin(), enumStringValues.end());
   }
 
@@ -192,24 +196,24 @@ inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
     if (SETTINGS.sdFontFamilyName[0] != '\0') {
       for (int i = 0; i < static_cast<int>(sdFamilyNames.size()); i++) {
         if (sdFamilyNames[i] == SETTINGS.sdFontFamilyName) {
-          return static_cast<uint8_t>(CrossPointSettings::BUILTIN_FONT_COUNT + i);
+          return static_cast<uint8_t>(CrossPointSettings::PICKER_BUILTIN_FONT_COUNT + i);
         }
       }
       // SD font name not found in registry — fall through to built-in
     }
-    return SETTINGS.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.fontFamily : 0;
+    return CrossPointSettings::builtinFontPickerIndex(SETTINGS.fontFamily);
   };
 
   s.valueSetter = [sdFamilyNames, registry](uint8_t v) {
     const uint8_t targetPointSize = SETTINGS.readerFontPointSize;
 
-    if (v < CrossPointSettings::BUILTIN_FONT_COUNT) {
-      SETTINGS.fontFamily = v;
+    if (v < CrossPointSettings::PICKER_BUILTIN_FONT_COUNT) {
+      SETTINGS.fontFamily = CrossPointSettings::builtinFontForPickerIndex(v);
       SETTINGS.sdFontFamilyName[0] = '\0';
       SETTINGS.readerFontPointSize = CrossPointSettings::getReaderFontPointSize(
           static_cast<CrossPointSettings::FONT_SIZE>(closestBuiltinFontSizeIndex(targetPointSize)));
     } else {
-      int sdIdx = v - CrossPointSettings::BUILTIN_FONT_COUNT;
+      int sdIdx = v - CrossPointSettings::PICKER_BUILTIN_FONT_COUNT;
       if (sdIdx < static_cast<int>(sdFamilyNames.size())) {
         const auto* family = registry ? registry->findFamily(sdFamilyNames[sdIdx]) : nullptr;
         const auto sizes = family ? family->availableSizes() : std::vector<uint8_t>{};
@@ -629,8 +633,15 @@ inline const std::vector<SettingInfo>& getBaseSettingsList() {
     // --- Reader ---
     // Built-in font-family entry. Replaced per-call with a registry-aware
     // version when SD fonts are installed.
+#ifdef CHYTANKA
+    // Lexend Deca is not built in (see CrossPointSettings::PICKER_BUILTIN_FONTS).
+    add(SettingInfo::Enum(StrId::STR_FONT_FAMILY, &CrossPointSettings::fontFamily, {StrId::STR_BITTER}, "fontFamily",
+                          StrId::STR_CAT_READER)
+            .withEnumRawValues({CrossPointSettings::BITTER}));
+#else
     add(SettingInfo::Enum(StrId::STR_FONT_FAMILY, &CrossPointSettings::fontFamily,
                           {StrId::STR_LEXEND_DECA, StrId::STR_BITTER}, "fontFamily", StrId::STR_CAT_READER));
+#endif
     add(buildBuiltinFontSizeSetting());
     add(SettingInfo::Enum(StrId::STR_SD_FONT_SIZE_RANGE, &CrossPointSettings::sdFontSizeRange,
                           {StrId::STR_FONT_RANGE_TEENSY, StrId::STR_FONT_RANGE_TINY, StrId::STR_FONT_RANGE_XLARGE,

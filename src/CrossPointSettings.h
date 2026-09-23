@@ -178,6 +178,43 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // Font family options (built-in fonts only; SD card fonts use sdFontFamilyName)
   enum FONT_FAMILY { LEXENDDECA = 0, BITTER = 1, FONT_FAMILY_COUNT };
   static constexpr uint8_t BUILTIN_FONT_COUNT = FONT_FAMILY_COUNT;
+  // Built-in families offered by the font pickers, in display order. Pickers
+  // list these first and SD card families after them. Chytanka builds leave
+  // out Lexend Deca (partial Cyrillic, not compiled in); its value stays
+  // reserved so saved settings and book caches still load, and resolves to
+  // Bitter.
+#ifdef CHYTANKA
+  static constexpr uint8_t PICKER_BUILTIN_FONTS[] = {BITTER};
+  static constexpr uint8_t DEFAULT_FONT_FAMILY = BITTER;
+#else
+  static constexpr uint8_t PICKER_BUILTIN_FONTS[] = {LEXENDDECA, BITTER};
+  static constexpr uint8_t DEFAULT_FONT_FAMILY = LEXENDDECA;
+#endif
+  static constexpr uint8_t PICKER_BUILTIN_FONT_COUNT = sizeof(PICKER_BUILTIN_FONTS);
+  static constexpr bool isBuiltinFontAvailable(const uint8_t family) {
+    for (const uint8_t available : PICKER_BUILTIN_FONTS) {
+      if (available == family) return true;
+    }
+    return false;
+  }
+  // Maps a stored built-in family to one that is compiled in.
+  static constexpr uint8_t availableBuiltinFont(const uint8_t family) {
+    return isBuiltinFontAvailable(family) ? family : DEFAULT_FONT_FAMILY;
+  }
+  // Picker row of a built-in family, and back.
+  static constexpr uint8_t builtinFontPickerIndex(const uint8_t family) {
+    for (uint8_t i = 0; i < PICKER_BUILTIN_FONT_COUNT; ++i) {
+      if (PICKER_BUILTIN_FONTS[i] == availableBuiltinFont(family)) return i;
+    }
+    return 0;
+  }
+  static constexpr uint8_t builtinFontForPickerIndex(const uint8_t index) {
+    return index < PICKER_BUILTIN_FONT_COUNT ? PICKER_BUILTIN_FONTS[index] : DEFAULT_FONT_FAMILY;
+  }
+  // Next built-in family for the "change font" shortcuts.
+  static constexpr uint8_t nextBuiltinFont(const uint8_t family) {
+    return PICKER_BUILTIN_FONTS[(builtinFontPickerIndex(family) + 1) % PICKER_BUILTIN_FONT_COUNT];
+  }
   // Font size options
   enum FONT_SIZE { TINY = 0, SMALL = 1, MEDIUM = 2, LARGE = 3, FONT_SIZE_COUNT };
   enum SD_FONT_SIZE_RANGE {
@@ -515,7 +552,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t readerFrontButtonLeft = FRONT_HW_LEFT;
   uint8_t readerFrontButtonRight = FRONT_HW_RIGHT;
   // Reader font settings
-  uint8_t fontFamily = LEXENDDECA;
+  uint8_t fontFamily = DEFAULT_FONT_FAMILY;
   // The physical reader size selected by the user. Built-in and SD-card font
   // families resolve this to their closest available file.
   uint8_t readerFontPointSize = 14;

@@ -49,6 +49,27 @@ Rect downloadCancelButtonRect(const GfxRenderer& renderer, const ThemeMetrics& m
   return Rect{(pageWidth - width) / 2, y, width, kButtonHeight};
 }
 
+#ifdef CHYTANKA
+// Fork-only («Читанка»): the catalogue is CrossInk's remote manifest, so the
+// families that cannot set Ukrainian text in their own glyphs are hidden here.
+// Checked against each family's source TTF cmap (А–Я а–я Ґґ Єє Іі Її ’ « »
+// plus ASCII) on 2026-09-23. A family added to the catalogue later is listed
+// only when its manifest "languages" mentions Cyrillic.
+bool chytankaHidesFontFamily(const char* name, const char* languages) {
+  static constexpr const char* kLackingUkrainian[] = {"AtkinsonHyperlegibleNext", "Lexend Deca", "LexicaUltralegible",
+                                                      "LibreBaskerville", "SourceCodePro"};
+  // Full Cyrillic in the source font, but the manifest lists no languages.
+  static constexpr const char* kVerifiedUkrainian[] = {"OpenDyslexic"};
+  for (const char* hidden : kLackingUkrainian) {
+    if (strcmp(name, hidden) == 0) return true;
+  }
+  for (const char* verified : kVerifiedUkrainian) {
+    if (strcmp(name, verified) == 0) return false;
+  }
+  return strstr(languages, "Cyrillic") == nullptr;
+}
+#endif
+
 constexpr int FONT_DOWNLOAD_MAX_ATTEMPTS = 3;
 constexpr int FONT_MANIFEST_MAX_ATTEMPTS = 5;
 constexpr uint32_t FONT_DOWNLOAD_RETRY_DELAY_MS = 500;
@@ -363,6 +384,9 @@ bool FontDownloadActivity::fetchAndParseManifest() {
       const char* const name = fObj["name"] | "";
       const char* const description = fObj["description"] | "";
       const char* const languages = fObj["languages"] | "";
+#ifdef CHYTANKA
+      if (chytankaHidesFontFamily(name, languages)) continue;
+#endif
       stringBytes += strlen(name) + 1;
       stringBytes += strlen(description) + 1;
       stringBytes += strlen(languages) + 1;
@@ -424,6 +448,12 @@ bool FontDownloadActivity::fetchAndParseManifest() {
     // list.
     while (!familiesArr.isNull() && familiesArr.size() > 0) {
       JsonObject fObj = familiesArr[0];
+#ifdef CHYTANKA
+      if (chytankaHidesFontFamily(fObj["name"] | "", fObj["languages"] | "")) {
+        familiesArr.remove(0);
+        continue;
+      }
+#endif
       ManifestFamily family;
       if (!internManifestString(fObj["name"] | "", family.name) ||
           !internManifestString(fObj["description"] | "", family.description) ||
