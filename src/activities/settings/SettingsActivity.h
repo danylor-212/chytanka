@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "ChytankaSettingLabels.h"
 #include "CrossPointSettings.h"
 #include "activities/Activity.h"
 #include "components/OptionPopup.h"
@@ -211,8 +212,13 @@ inline std::string settingEnumOptionLabel(const SettingInfo& setting, const uint
   if (!setting.enumStringValues.empty()) {
     return displayIndex < setting.enumStringValues.size() ? setting.enumStringValues[displayIndex] : std::string();
   }
-  return displayIndex < setting.enumValues.size() ? std::string(I18N.get(setting.enumValues[displayIndex]))
-                                                  : std::string();
+  if (displayIndex >= setting.enumValues.size()) return std::string();
+#ifdef CHYTANKA
+  if (const char* label = chytanka::settingOptionLabelOverride(setting.key, setting.enumValues[displayIndex])) {
+    return label;
+  }
+#endif
+  return I18N.get(setting.enumValues[displayIndex]);
 }
 
 inline bool settingShowsNavigationCaret(const SettingInfo& setting) {

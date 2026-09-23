@@ -1477,6 +1477,12 @@ void CrossPointWebServer::handleGetSettings() const {
         } else {
           for (size_t optionIndex = 0; optionIndex < s.enumValues.size(); ++optionIndex) {
             if (isWebEnumOptionAvailable(s, optionIndex)) {
+#ifdef CHYTANKA
+              if (const char* label = chytanka::settingOptionLabelOverride(s.key, s.enumValues[optionIndex])) {
+                options.add(label);
+                continue;
+              }
+#endif
               options.add(I18N.get(s.enumValues[optionIndex]));
             }
           }

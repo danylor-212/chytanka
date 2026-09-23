@@ -176,6 +176,13 @@ side margins are black too. The **cover filter** setting applies on top,
 exactly as for an SD sleep image (black & white / inverted drop the gray
 passes; inverted B/W in Dark therefore ends up light).
 
+In the settings UI and the web settings page these two modes are labelled
+«Цитати — світла тема» / «Цитати — темна тема» ("Quotes — light" / "Quotes —
+dark" in English) by `chytanka::settingOptionLabelOverride()`
+(`src/activities/settings/ChytankaSettingLabels.h`), keyed on the setting's
+JSON key `sleepScreen`. The strings live there rather than in the translation
+files, so stock CrossInk keeps «Темний» / «Світлий».
+
 - **Source of truth:** the brand repo — `brand/quotes/embedded_ids.json` (the
   50 ids, written and validated by `brand/quotes/select_embedded.py`: max 3
   per author, at least 20 authors, all reading-themed quotes and Shevchenko
