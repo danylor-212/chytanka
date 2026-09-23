@@ -425,7 +425,6 @@ def format_cpp_string_literal(segments: List[str], indent: str = "    ") -> List
 # Offset-table value meaning "this string is identical to English".
 ENGLISH_FALLBACK_OFFSET = 0xFFFF
 
-
 def build_offset_table(
     code: str, lang_strings: List[str], en_strings: Optional[List[str]]
 ) -> Tuple[List[int], List[str]]:
@@ -452,6 +451,94 @@ def build_offset_table(
         blob_strings.append(text)
         current_offset += len(text.encode("utf-8")) + 1
     return offsets, blob_strings
+
+
+# printf conversion specifications, including "%%" (a literal percent sign)
+# and positional "%1$s" forms (which the firmware never uses).
+_PRINTF_SPEC = re.compile(
+    r"%(?:(?P<pct>%)|(?P<pos>\d+\$)?(?P<flags>[-+ #0]*)(?P<width>\d+|\*)?(?:\.(?P<prec>\d+|\*))?"
+    r"(?P<length>hh|h|ll|l|z|j|t|L)?(?P<conv>[diouxXeEfgGcsp]))"
+)
+
+# Conversions that read the same argument type; "%i" is as safe as "%d".
+_CONVERSION_CLASS = {"i": "d"}
+
+
+def _printf_specs(text: str) -> List[Tuple[str, bool]]:
+    """(canonical form, positional) per conversion.
+
+    The canonical form keeps only what decides which argument is read and how:
+    the length modifier, the conversion letter and the number of "*" arguments.
+    Flags, width and precision may differ between languages ("%5s" and "%s"
+    read the same argument).
+    """
+    specs: List[Tuple[str, bool]] = []
+    for match in _PRINTF_SPEC.finditer(text):
+        if match.group("pct"):
+            specs.append(("%%", False))
+            continue
+        stars = "*" * ((match.group("width") == "*") + (match.group("prec") == "*"))
+        conv = _CONVERSION_CLASS.get(match.group("conv"), match.group("conv"))
+        space_only = match.group("flags") == " " and not match.group("width") and match.group("prec") is None
+        canonical = f"%{stars}{match.group('length') or ''}{conv}" + (" [space-flag]" if space_only else "")
+        specs.append((canonical, bool(match.group("pos"))))
+    return specs
+
+
+def _is_printf_format(text: str) -> bool:
+    """True when English text is used as a printf format.
+
+    Plain text such as "You have reached 99% of this book" contains a stray
+    "% o" that parses as a space-flag conversion; a string only counts as a
+    format when it has a conversion without the rarely used space flag.
+    """
+    return any(not spec.endswith("[space-flag]") for spec, _ in _printf_specs(text))
+
+
+def check_format_specifiers(
+    languages: List[str], string_keys: List[str], translations: Dict[str, List[str]]
+) -> Tuple[List[str], List[str]]:
+    """Compare every translation's printf conversions with English.
+
+    Errors (generation fails, for every language): a different argument type
+    or order, an extra conversion reading a missing argument, a stray "% G",
+    or a positional "%1$s" (unsupported). These are undefined behaviour at the
+    snprintf call. Warnings: a translation that drops trailing conversions
+    (the extra arguments are ignored, the text just loses information), or one
+    that adds conversions to text English does not format (they would print
+    garbage if the string is ever passed to printf).
+    Keys ending in _PATTERN are {d}/{m} date patterns, not printf formats.
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+    for key in string_keys:
+        if key.endswith("_PATTERN"):
+            continue
+        english = translations[key][0]
+        english_is_format = _is_printf_format(english)
+        expected = [spec for spec, _ in _printf_specs(english)]
+        for i in range(1, len(languages)):
+            text = translations[key][i]
+            if text == english:
+                continue
+            specs = _printf_specs(text)
+            actual = [spec for spec, _ in specs]
+            where = f"{languages[i]} {key}"
+            if any(positional for _, positional in specs):
+                errors.append(f"{where}: positional conversions (%1$s) are not supported: {text!r}")
+                continue
+            if not english_is_format:
+                if any(not spec.endswith("[space-flag]") for spec in actual):
+                    warnings.append(f"{where}: adds conversions {actual} to text English does not format")
+                continue
+            if actual == expected:
+                continue
+            message = f"{where}: {actual} != English {expected}"
+            if actual == expected[: len(actual)]:
+                warnings.append(message)
+            else:
+                errors.append(message)
+    return errors, warnings
 
 
 def compute_character_set(translations: Dict[str, List[str]], lang_index: int) -> str:
@@ -926,6 +1013,17 @@ def main(
             )
             for key in missing_keys:
                 print(f"    - {key}")
+            print()
+            sys.exit(1)
+
+        # --- printf specifier check (translations must match English) ---
+        format_errors, format_warnings = check_format_specifiers(languages, string_keys, translations)
+        for message in format_warnings:
+            print(f"  WARNING: printf format: {message}")
+        if format_errors:
+            print(f"\n  CRITICAL: {len(format_errors)} translation(s) break printf formats:")
+            for message in format_errors:
+                print(f"    - {message}")
             print()
             sys.exit(1)
 
