@@ -19,6 +19,7 @@ using chytanka::QUOTE_CARD_WIDTH;
 using chytanka::QUOTE_CARDS;
 using chytanka::QuoteCardDecoder;
 using chytanka::QuoteCardHistory;
+using chytanka::quoteCardLevel;
 
 namespace {
 
@@ -145,7 +146,7 @@ TEST(ChytankaQuoteCards, MatchesSourceBmpWhenBrandDirIsSet) {
   }
 }
 
-// Writes each decoded card as a PGM for visual checks when requested.
+// Writes each decoded card (Light and Dark) as a PGM for visual checks.
 TEST(ChytankaQuoteCards, DumpPgmWhenRequested) {
   const char* dir = std::getenv("CHYTANKA_QUOTE_DUMP_DIR");
   if (!dir || !*dir) GTEST_SKIP() << "CHYTANKA_QUOTE_DUMP_DIR not set";
@@ -155,11 +156,13 @@ TEST(ChytankaQuoteCards, DumpPgmWhenRequested) {
     ASSERT_TRUE(decoder.beginCard(i));
     ASSERT_TRUE(decodeLevels(decoder, levels));
     char path[512];
-    snprintf(path, sizeof(path), "%s/card%02d_q%03u.pgm", dir, i, QUOTE_CARDS[i].quoteId);
-    std::ofstream out(path, std::ios::binary);
-    out << "P5\n" << QUOTE_CARD_WIDTH << " " << QUOTE_CARD_HEIGHT << "\n255\n";
-    for (const uint8_t level : levels) out.put(static_cast<char>(level * 85));
-    ASSERT_TRUE(out.good()) << path;
+    for (const bool dark : {false, true}) {
+      snprintf(path, sizeof(path), "%s/card%02d_q%03u%s.pgm", dir, i, QUOTE_CARDS[i].quoteId, dark ? "_dark" : "");
+      std::ofstream out(path, std::ios::binary);
+      out << "P5\n" << QUOTE_CARD_WIDTH << " " << QUOTE_CARD_HEIGHT << "\n255\n";
+      for (const uint8_t level : levels) out.put(static_cast<char>(quoteCardLevel(level, dark) * 85));
+      ASSERT_TRUE(out.good()) << path;
+    }
   }
 }
 
@@ -189,6 +192,28 @@ TEST(ChytankaQuoteCards, CorruptOrTruncatedDataIsRejected) {
   EXPECT_FALSE(decoder.beginCard(-1));
   EXPECT_EQ(decoder.nextRow(), nullptr);
   EXPECT_FALSE(decoder.beginCard(QUOTE_CARD_COUNT));
+}
+
+TEST(ChytankaQuoteCards, DarkModeInvertsLevels) {
+  // 0 black, 1 dark gray, 2 light gray, 3 white.
+  static_assert(quoteCardLevel(0, true) == 3 && quoteCardLevel(3, true) == 0);
+  static_assert(quoteCardLevel(1, true) == 2 && quoteCardLevel(2, true) == 1);
+  for (uint8_t level = 0; level < 4; level++) {
+    EXPECT_EQ(quoteCardLevel(level, false), level);
+    EXPECT_EQ(quoteCardLevel(quoteCardLevel(level, true), true), level);
+  }
+
+  // A whole inverted card keeps its gray pixels gray and swaps the histogram.
+  QuoteCardDecoder decoder;
+  std::vector<uint8_t> levels;
+  ASSERT_TRUE(decoder.beginCard(0));
+  ASSERT_TRUE(decodeLevels(decoder, levels));
+  int normal[4] = {}, inverted[4] = {};
+  for (const uint8_t level : levels) {
+    normal[level]++;
+    inverted[quoteCardLevel(level, true)]++;
+  }
+  for (int level = 0; level < 4; level++) EXPECT_EQ(inverted[level], normal[3 - level]);
 }
 
 TEST(ChytankaQuotePicker, EachCycleShowsEveryCardOnce) {

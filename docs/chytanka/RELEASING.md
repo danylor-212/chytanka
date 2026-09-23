@@ -168,9 +168,13 @@ quote cards compiled into the firmware instead of the logo block. Every other
 mode (Custom / Cover / Overlay / stats / Quick Resume ...) is unchanged; the
 modes that fall back to the default screen when they have nothing to show
 (Custom with no images, Cover outside a book, ...) now fall back to a card.
-The boot screen keeps the logo. The card is drawn as designed in both Dark and
-Light (not inverted); the **cover filter** setting applies exactly as for an
-SD sleep image (black & white / inverted drop the gray passes).
+The boot screen keeps the logo. **Light** shows the card as designed; **Dark**
+(the default setting) shows it inverted, light text on black, by swapping gray
+levels (0<->3, 1<->2) in every render pass so the gray planes stay correct
+(inverting the finished B/W framebuffer would not invert them); on the X3 the
+side margins are black too. The **cover filter** setting applies on top,
+exactly as for an SD sleep image (black & white / inverted drop the gray
+passes; inverted B/W in Dark therefore ends up light).
 
 - **Source of truth:** the brand repo — `brand/quotes/embedded_ids.json` (the
   50 ids, written and validated by `brand/quotes/select_embedded.py`: max 3

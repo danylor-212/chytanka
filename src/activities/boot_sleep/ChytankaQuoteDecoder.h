@@ -46,6 +46,14 @@ class QuoteCardDecoder {
   bool failed = true;
 };
 
+// Gray level to draw for a decoded card pixel (0 black .. 3 white). Dark sleep
+// mode shows the card inverted (light text on black) by mapping levels before
+// every render pass: 0<->3, 1<->2. Inverting the finished B/W framebuffer
+// instead would leave the gray planes un-inverted.
+constexpr uint8_t quoteCardLevel(const uint8_t level, const bool inverted) {
+  return inverted ? static_cast<uint8_t>(3 - (level & 0x3)) : static_cast<uint8_t>(level & 0x3);
+}
+
 // Persisted shuffle-bag state: every card is shown once per cycle, in random
 // order, and a new cycle never starts with the card that ended the last one.
 struct QuoteCardHistory {
