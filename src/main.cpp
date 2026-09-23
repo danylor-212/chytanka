@@ -1326,10 +1326,14 @@ void setup() {
   SETTINGS.language = static_cast<uint8_t>(Language::CHYTANKA_DEFAULT_LANGUAGE);
 #endif
 #ifdef CHYTANKA
-  // Fork-only reader default: hyphenation on until the settings file saves a
-  // choice (new books copy the globals into their per-book state). The
-  // default font, Bitter, comes from CrossPointSettings::DEFAULT_FONT_FAMILY.
+  // Fork-only reader defaults until the settings file saves a choice (new
+  // books copy the globals into their per-book state): hyphenation on, and
+  // text anti-aliasing off, since its B/W-then-gray two-pass refresh shows a
+  // bold draft of every page before the smoothed one, while B/W-only text uses
+  // the sharp glyph threshold in a single refresh. The default font, Bitter,
+  // comes from CrossPointSettings::DEFAULT_FONT_FAMILY.
   SETTINGS.hyphenationEnabled = 1;
+  SETTINGS.textAntiAliasing = 0;
 #endif
   SETTINGS.loadFromFile();
   Storage.installDateTimeCallback(&SETTINGS.clockUtcOffsetQ);
