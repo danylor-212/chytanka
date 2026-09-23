@@ -106,6 +106,15 @@ bool drawCardPass(GfxRenderer& renderer, QuoteCardDecoder& decoder, const int ca
 }  // namespace
 
 bool renderQuoteCardSleepScreen(GfxRenderer& renderer, const bool turnOffScreen) {
+  // Cards are portrait-only. SleepActivity sets Portrait before drawing; if a
+  // future path does not, fall back to the brand block (which lays out in any
+  // orientation) rather than changing the renderer's orientation behind the
+  // caller's back.
+  if (renderer.getScreenWidth() > renderer.getScreenHeight()) {
+    LOG_INF("SLP", "Quote card skipped: renderer is not in portrait");
+    return false;
+  }
+
   // One ~1.9 KB block (inflate state + 512 B ring + one row) for the whole
   // render; freed on return. Everything else is flash or the framebuffer.
   auto decoder = makeUniqueNoThrow<QuoteCardDecoder>();

@@ -678,6 +678,7 @@ void SleepActivity::renderDefaultSleepScreen() const {
 }
 
 bool SleepActivity::renderBitmapSleepScreen(Bitmap& bitmap) const {
+  // CHYTANKA: mirrored in ChytankaQuoteSleep.cpp
   int x, y;
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
