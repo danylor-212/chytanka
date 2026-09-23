@@ -91,6 +91,9 @@ inline esp_sleep_wakeup_cause_t esp_sleep_get_wakeup_cause() { return ESP_SLEEP_
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/boot_sleep/ImageFolderIndex.h"
+#ifdef CHYTANKA
+#include "activities/boot_sleep/ChytankaBrand.h"
+#endif
 #include "activities/home/BookActions.h"
 #include "activities/reader/KOReaderSyncActivity.h"
 #include "activities/reader/ReadingStatsUtils.h"
@@ -1465,6 +1468,28 @@ void setup() {
         Storage.remove(SLEEP_FRAME_FILE);
         renderer.clearScreen();
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+#ifdef CHYTANKA
+      } else {
+        // Fork-only («Читанка»): wake paints the Chytanka boot screen with the
+        // one clean HALF refresh the first paint needs anyway (the driver
+        // promotes Home's first FAST paint to HALF), instead of CrossInk's
+        // blank clear (fading fix) or going straight from the quote card to
+        // Home through that HALF flash. Home / the reader then land with a
+        // FAST differential refresh over the logo. Quick Resume frames above
+        // keep their own path.
+        const unsigned long wakeLogoStart = millis();
+        const auto pageWidth = renderer.getScreenWidth();
+        const auto pageHeight = renderer.getScreenHeight();
+        renderer.clearScreen();
+        chytanka::drawBrandBlock(renderer, pageWidth, pageHeight, tr(STR_BOOTING));
+        renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, CROSSINK_VERSION);
+        renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+        LOG_INF("BOOT", "Wake: Chytanka boot screen painted in %lu ms", millis() - wakeLogoStart);
+        // The HALF refresh has established a clean panel baseline (same as the
+        // stock X4 clear), so the reader's first page can use its fast cycle.
+        if (shouldClearX4WakeGhosting()) allowFastInitialReaderRefresh = true;
+      }
+#else
       } else if (shouldClearX4WakeGhosting() && SETTINGS.fadingFix != 0) {
         LOG_INF("BOOT", "X4 wake: clearing retained sleep image with half refresh");
         renderer.clearScreen();
@@ -1474,6 +1499,7 @@ void setup() {
         // instead of repeating the cleanup waveform.
         allowFastInitialReaderRefresh = true;
       }
+#endif
       break;
     case BootResume::Splash:
       activityManager.goToBoot();
