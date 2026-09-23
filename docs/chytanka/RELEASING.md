@@ -255,6 +255,18 @@ files, so stock CrossInk keeps «Темний» / «Світлий».
   Resume frames keep their own path. The log line
   `Wake: Chytanka boot screen painted in N ms` times it on a device.
 
+## Built-in OPDS catalogue (`CHYTANKA`)
+
+`OpdsServerStore` adds «Читанка — Книжки»
+(`https://danylor-212.github.io/chytanka-books/opds/index.xml`) at the top of
+the OPDS server list once per device: on a fresh device and on one whose saved
+`opds.json` predates it. It is an ordinary entry the user can edit or delete.
+`opds.json` records `"chytankaCatalogueSeeded": true` after the first add, so a
+deleted catalogue does not come back; an entry with the same URL added by hand
+counts as present. Stock CrossInk ignores (and drops) that key. If the list is
+full (8 servers) nothing is added and the flag stays unset, so it is tried
+again once there is room.
+
 ## Rebase checklist
 
 After every rebase onto a new upstream CrossInk tag:

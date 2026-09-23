@@ -36,6 +36,13 @@ class OpdsServerStore : public PersistableStore<OpdsServerStore> {
 
   OpdsServerStore() = default;
   bool migrateFromSettings();
+#ifdef CHYTANKA
+  // Fork-only: whether the built-in «Читанка — Книжки» catalogue has been
+  // added to this list once. Persisted, so a user who deletes it keeps it
+  // deleted.
+  bool chytankaCatalogueSeeded_ = false;
+  void seedChytankaCatalogue();
+#endif
 
   friend class PersistableStore<OpdsServerStore>;
 

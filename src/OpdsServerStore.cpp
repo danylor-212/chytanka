@@ -11,6 +11,12 @@
 #include "CrossPointSettings.h"
 
 namespace {
+#ifdef CHYTANKA
+// Fork-only («Читанка»): public-domain Ukrainian books, OPDS 1.2.
+constexpr char CHYTANKA_CATALOGUE_NAME[] = "Читанка — Книжки";
+constexpr char CHYTANKA_CATALOGUE_URL[] = "https://danylor-212.github.io/chytanka-books/opds/index.xml";
+constexpr char CHYTANKA_CATALOGUE_SEEDED_KEY[] = "chytankaCatalogueSeeded";
+#endif
 constexpr char FILENAME_FORMAT_AUTHOR_TITLE[] = "author_title";
 constexpr char FILENAME_FORMAT_TITLE_AUTHOR[] = "title_author";
 }  // namespace
@@ -42,12 +48,18 @@ void OpdsServerStore::toJson(JsonDocument& doc) const {
     obj["password_obf"] = obfuscation::obfuscateToBase64(server.password);
     obj["filenameFormat"] = opdsFilenameFormatToJson(server.filenameFormat);
   }
+#ifdef CHYTANKA
+  if (chytankaCatalogueSeeded_) doc[CHYTANKA_CATALOGUE_SEEDED_KEY] = true;
+#endif
 }
 
 bool OpdsServerStore::fromJson(JsonVariantConst doc) {
   // Tolerate a missing/invalid 'servers' key (treat as empty list); only a
   // JSON parse error is fatal. A null JsonArray iterates zero times.
   servers.clear();
+#ifdef CHYTANKA
+  chytankaCatalogueSeeded_ = doc[CHYTANKA_CATALOGUE_SEEDED_KEY] | false;
+#endif
   JsonArrayConst arr = doc["servers"].as<JsonArrayConst>();
   servers.reserve(std::min(arr.size(), MAX_SERVERS));
   bool needsResave = false;
@@ -86,8 +98,14 @@ bool OpdsServerStore::fromJson(JsonVariantConst doc) {
 bool OpdsServerStore::loadFromFile() {
   servers.clear();
   loaded_ = true;
+#ifdef CHYTANKA
+  chytankaCatalogueSeeded_ = false;
+#endif
   const bool hasStoreFile = Storage.exists(getFilePath());
   if (PersistableStore<OpdsServerStore>::loadFromFile()) {
+#ifdef CHYTANKA
+    seedChytankaCatalogue();
+#endif
     return true;
   }
   if (hasStoreFile) {
@@ -96,11 +114,43 @@ bool OpdsServerStore::loadFromFile() {
 
   if (migrateFromSettings()) {
     LOG_DBG("OPS", "Migrated legacy OPDS settings");
+#ifdef CHYTANKA
+    seedChytankaCatalogue();
+#endif
     return true;
   }
 
+#ifdef CHYTANKA
+  seedChytankaCatalogue();
+  return true;
+#else
   return false;
+#endif
 }
+
+#ifdef CHYTANKA
+// Adds the Chytanka catalogue once per device: on a fresh device, and on one
+// whose saved list predates it. The "seeded" flag is saved with the list, so a
+// catalogue the user deletes is not added back. An existing entry with the
+// same URL (added by hand) counts as present.
+void OpdsServerStore::seedChytankaCatalogue() {
+  if (chytankaCatalogueSeeded_) return;
+  const bool present =
+      std::any_of(servers.begin(), servers.end(), [](const OpdsServer& s) { return s.url == CHYTANKA_CATALOGUE_URL; });
+  if (!present) {
+    if (servers.size() >= MAX_SERVERS) {
+      LOG_DBG("OPS", "Server list full; Chytanka catalogue not added");
+      return;
+    }
+    OpdsServer server;
+    server.name = CHYTANKA_CATALOGUE_NAME;
+    server.url = CHYTANKA_CATALOGUE_URL;
+    servers.insert(servers.begin(), std::move(server));
+  }
+  chytankaCatalogueSeeded_ = true;
+  if (!saveToFile()) LOG_ERR("OPS", "Failed to save the Chytanka catalogue entry");
+}
+#endif
 
 void OpdsServerStore::ensureLoaded() const {
   if (loaded_) return;
