@@ -24,7 +24,9 @@
 #include "components/UIScale.h"
 #include "components/UITheme.h"
 #include "components/UIThemeTokens.h"
+#include "components/themes/ButtonHintRenderer.h"
 #include "fontIds.h"
+#include "util/LocaleFormat.h"
 
 // Internal constants
 namespace {
@@ -181,14 +183,25 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   constexpr int wideButtonPositions[] = {38, 154, 268, 384};
   const int* buttonPositions = renderer.getScreenWidth() >= 528 ? wideButtonPositions : narrowButtonPositions;
   const char* labels[] = {btn1, btn2, btn3, btn4};
+  ButtonHintRow row;
+  layoutButtonHintRow(renderer, UI_10_FONT_ID, row, labels, buttonPositions, buttonWidth);
+
+  // A box that grew on the previous draw would leave its border behind on a
+  // fast refresh; clear it. Layouts that fit clear nothing extra.
+  static ButtonHintHistory history;
+  ButtonHintSpan staleSpans[ButtonHintRow::kCount];
+  const int staleCount = buttonHintSpansToClear(row, buttonPositions, buttonWidth, history, staleSpans);
+  for (int i = 0; i < staleCount; i++) {
+    renderer.fillRect(staleSpans[i].x, pageHeight - buttonY, staleSpans[i].width, buttonHeight, false);
+  }
 
   for (int i = 0; i < 4; i++) {
     const int x = buttonPositions[i];
-    if (labels[i] != nullptr && labels[i][0] != '\0') {
-      TouchRegistry::getInstance().add(Rect{x, pageHeight - buttonY, buttonWidth, buttonHeight}, i,
-                                       TouchRegistry::Button);
-      renderer.fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false);
-      renderer.drawRect(x, pageHeight - buttonY, buttonWidth, buttonHeight);
+    if (row.labelled[i]) {
+      const Rect box{row.spans[i].x, pageHeight - buttonY, row.spans[i].width, buttonHeight};
+      TouchRegistry::getInstance().add(box, i, TouchRegistry::Button);
+      renderer.fillRect(box.x, box.y, box.width, box.height, false);
+      renderer.drawRect(box.x, box.y, box.width, box.height);
     } else if (labels[i] != nullptr) {
       // Fast refreshes retain the previous hint pixels. Clear a label that was
       // present on the last screen before leaving this button slot inactive.
@@ -200,11 +213,11 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   const int textY = invertText ? textYOffset : pageHeight - buttonY + textYOffset;
 
   for (int i = 0; i < 4; i++) {
-    if (labels[i] != nullptr && labels[i][0] != '\0') {
-      const int x = buttonPositions[invertText ? 3 - i : i];
-      const int textWidth = renderer.getTextWidth(UI_10_FONT_ID, labels[i]);
-      const int textX = x + (buttonWidth - 1 - textWidth) / 2;
-      renderer.drawText(UI_10_FONT_ID, textX, textY, labels[i]);
+    if (row.labelled[i]) {
+      const ButtonHintSpan& span = row.spans[i];
+      const int x = invertText ? mirroredButtonHintX(buttonPositions, 4, i, span, buttonWidth) : span.x;
+      const int textX = x + (span.width - 1 - row.textWidths[i]) / 2;
+      renderer.drawText(UI_10_FONT_ID, textX, textY, row.text(i));
     }
   }
 
@@ -925,6 +938,8 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
       snprintf(progressStr, sizeof(progressStr), "%d/%d", currentPage, pageCount);
     }
 
+    if (percentageDecimals > 0) LocaleFormat::localizeDecimalSeparator(progressStr);
+
     progressTextWidth = renderer.getTextWidth(SMALL_FONT_ID, progressStr);
     const int estimateWidth = showEstimate ? renderer.getTextWidth(UI_10_FONT_ID, "~") : 0;
     constexpr int estimateGap = 2;
@@ -1050,7 +1065,7 @@ void BaseTheme::drawTopStatusBarClock(const GfxRenderer& renderer, int topY, con
     return;
   }
 
-  char timeBuf[9];
+  char timeBuf[16];
   const char* timeText = previewTime;
   if (timeText == nullptr) {
     if (!halClock.isAvailable()) {
@@ -1059,6 +1074,7 @@ void BaseTheme::drawTopStatusBarClock(const GfxRenderer& renderer, int topY, con
     if (!halClock.formatTime(timeBuf, sizeof(timeBuf), SETTINGS.clockUtcOffsetQ, SETTINGS.clockFormat == 1)) {
       return;
     }
+    LocaleFormat::localizeMeridiem(timeBuf, sizeof(timeBuf));
     timeText = timeBuf;
   }
 

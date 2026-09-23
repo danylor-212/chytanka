@@ -49,6 +49,7 @@
 #include "fontIds.h"
 #include "util/DictionaryRegistry.h"
 #include "util/FrontlightSchedule.h"
+#include "util/LocaleFormat.h"
 
 namespace fui = freeink::ui;
 
@@ -133,15 +134,8 @@ std::string formatUtcOffset(uint8_t biasedQ) {
 }
 
 std::string formatCompactDuration(const uint32_t seconds) {
-  char buf[24];
-  if (seconds < 60) {
-    snprintf(buf, sizeof(buf), "%lus", static_cast<unsigned long>(seconds));
-  } else if (seconds % 60 == 0) {
-    snprintf(buf, sizeof(buf), "%lum", static_cast<unsigned long>(seconds / 60));
-  } else {
-    snprintf(buf, sizeof(buf), "%lum %lus", static_cast<unsigned long>(seconds / 60),
-             static_cast<unsigned long>(seconds % 60));
-  }
+  char buf[32];
+  LocaleFormat::formatSeconds(seconds, buf, sizeof(buf));
   return buf;
 }
 

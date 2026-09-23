@@ -1,3 +1,24 @@
+## [Unreleased]
+
+### Added
+
+- The Ukrainian UI translation is complete, with reviewed terminology.
+- Durations, pages per minute, decimal percentages (status bar, KOReader and nearby sync), file sizes, point sizes, month names, long date order, and AM/PM markers can follow the UI language. English output is unchanged.
+- The Minimal theme's home-screen quotes can be translated; Ukrainian shows quotes from Ukrainian classics.
+
+### Fixed
+
+- Dashboard stats and reading-stats cells drop the minutes from long durations (for example 123h) instead of running into the cover or the next cell.
+- Button hint labels longer than their box widen into the free space beside it or are shortened with an ellipsis instead of spilling over the border. Labels that fit are drawn as before.
+- Long reader toasts wrap onto up to three lines instead of running off the screen.
+- Font download, nearby stats sync, and image viewer messages are translated.
+- German KOReader and nearby sync progress no longer prints a stray formatted number after the percent sign, and Russian shows the overall percentage again.
+
+### Changed
+
+- Translation generation fails when any language's printf placeholders read different arguments than English (or use positional `%1$s`), and warns when a translation only drops trailing ones or adds some to plain text.
+- A language's own strings may now use up to 64 KB instead of 32 KB.
+
 ## [v1.6.0] - 2026-09-21
 
 ### Added

@@ -422,6 +422,125 @@ def format_cpp_string_literal(segments: List[str], indent: str = "    ") -> List
 # ---------------------------------------------------------------------------
 
 
+# Offset-table value meaning "this string is identical to English".
+ENGLISH_FALLBACK_OFFSET = 0xFFFF
+
+def build_offset_table(
+    code: str, lang_strings: List[str], en_strings: Optional[List[str]]
+) -> Tuple[List[int], List[str]]:
+    """Offsets into the language's blob, one per string, and the blob strings.
+
+    With en_strings given (non-English), a string identical to English is not
+    stored and gets ENGLISH_FALLBACK_OFFSET instead. Every stored string must
+    start below that sentinel: a string starting exactly at 0xFFFF would read
+    back as "use English", so any start offset >= 0xFFFF is an error.
+    """
+    offsets: List[int] = []
+    blob_strings: List[str] = []
+    current_offset = 0
+    for i, text in enumerate(lang_strings):
+        if en_strings is not None and text == en_strings[i]:
+            offsets.append(ENGLISH_FALLBACK_OFFSET)
+            continue
+        if current_offset >= ENGLISH_FALLBACK_OFFSET:
+            raise ValueError(
+                f"Language {code}: string {i} would start at byte offset {current_offset}, "
+                f"but string start offsets must stay below {ENGLISH_FALLBACK_OFFSET} (0xFFFF)"
+            )
+        offsets.append(current_offset)
+        blob_strings.append(text)
+        current_offset += len(text.encode("utf-8")) + 1
+    return offsets, blob_strings
+
+
+# printf conversion specifications, including "%%" (a literal percent sign)
+# and positional "%1$s" forms (which the firmware never uses).
+_PRINTF_SPEC = re.compile(
+    r"%(?:(?P<pct>%)|(?P<pos>\d+\$)?(?P<flags>[-+ #0]*)(?P<width>\d+|\*)?(?:\.(?P<prec>\d+|\*))?"
+    r"(?P<length>hh|h|ll|l|z|j|t|L)?(?P<conv>[diouxXeEfgGcsp]))"
+)
+
+# Conversions that read the same argument type; "%i" is as safe as "%d".
+_CONVERSION_CLASS = {"i": "d"}
+
+
+def _printf_specs(text: str) -> List[Tuple[str, bool]]:
+    """(canonical form, positional) per conversion.
+
+    The canonical form keeps only what decides which argument is read and how:
+    the length modifier, the conversion letter and the number of "*" arguments.
+    Flags, width and precision may differ between languages ("%5s" and "%s"
+    read the same argument).
+    """
+    specs: List[Tuple[str, bool]] = []
+    for match in _PRINTF_SPEC.finditer(text):
+        if match.group("pct"):
+            specs.append(("%%", False))
+            continue
+        stars = "*" * ((match.group("width") == "*") + (match.group("prec") == "*"))
+        conv = _CONVERSION_CLASS.get(match.group("conv"), match.group("conv"))
+        space_only = match.group("flags") == " " and not match.group("width") and match.group("prec") is None
+        canonical = f"%{stars}{match.group('length') or ''}{conv}" + (" [space-flag]" if space_only else "")
+        specs.append((canonical, bool(match.group("pos"))))
+    return specs
+
+
+def _is_printf_format(text: str) -> bool:
+    """True when English text is used as a printf format.
+
+    Plain text such as "You have reached 99% of this book" contains a stray
+    "% o" that parses as a space-flag conversion; a string only counts as a
+    format when it has a conversion without the rarely used space flag.
+    """
+    return any(not spec.endswith("[space-flag]") for spec, _ in _printf_specs(text))
+
+
+def check_format_specifiers(
+    languages: List[str], string_keys: List[str], translations: Dict[str, List[str]]
+) -> Tuple[List[str], List[str]]:
+    """Compare every translation's printf conversions with English.
+
+    Errors (generation fails, for every language): a different argument type
+    or order, an extra conversion reading a missing argument, a stray "% G",
+    or a positional "%1$s" (unsupported). These are undefined behaviour at the
+    snprintf call. Warnings: a translation that drops trailing conversions
+    (the extra arguments are ignored, the text just loses information), or one
+    that adds conversions to text English does not format (they would print
+    garbage if the string is ever passed to printf).
+    Keys ending in _PATTERN are {d}/{m} date patterns, not printf formats.
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+    for key in string_keys:
+        if key.endswith("_PATTERN"):
+            continue
+        english = translations[key][0]
+        english_is_format = _is_printf_format(english)
+        expected = [spec for spec, _ in _printf_specs(english)]
+        for i in range(1, len(languages)):
+            text = translations[key][i]
+            if text == english:
+                continue
+            specs = _printf_specs(text)
+            actual = [spec for spec, _ in specs]
+            where = f"{languages[i]} {key}"
+            if any(positional for _, positional in specs):
+                errors.append(f"{where}: positional conversions (%1$s) are not supported: {text!r}")
+                continue
+            if not english_is_format:
+                if any(not spec.endswith("[space-flag]") for spec in actual):
+                    warnings.append(f"{where}: adds conversions {actual} to text English does not format")
+                continue
+            if actual == expected:
+                continue
+            message = f"{where}: {actual} != English {expected}"
+            if actual == expected[: len(actual)]:
+                warnings.append(message)
+            else:
+                errors.append(message)
+    return errors, warnings
+
+
 def compute_character_set(translations: Dict[str, List[str]], lang_index: int) -> str:
     """Return a sorted string of every unique character used in a language."""
     chars = set()
@@ -655,12 +774,13 @@ def generate_strings_cpp(
 
     # Per-language flat string blobs and offset tables.
     # Non-English languages skip strings identical to English; their offset
-    # tables use bit 15 (0x8000) to flag "use English blob at offset & 0x7FFF".
+    # tables mark such a string with ENGLISH_FALLBACK_OFFSET (0xFFFF), which the
+    # runtime resolves through OFFSETS_EN at the same index. Every other value
+    # is a full 16-bit offset into the language's own blob.
     lines.append("namespace i18n_strings {")
     lines.append("")
 
-    en_strings = [translations[key][0] for key in string_keys]
-    en_offsets: List[int] = []
+    en_strings_for_fallback: List[str] = []
 
     for lang_idx, code in enumerate(languages):
         if code not in compiled:
@@ -670,34 +790,10 @@ def generate_strings_cpp(
 
         if is_english:
             # Precompute byte offsets (UTF-8 encoded, +1 per string for null terminator)
-            offsets: List[int] = []
-            current_offset = 0
-            for s in lang_strings:
-                offsets.append(current_offset)
-                current_offset += len(s.encode("utf-8")) + 1
-            if current_offset > 0x7FFF:
-                raise ValueError(
-                    f"Language {code}: blob size ({current_offset} bytes) exceeds "
-                    "15-bit offset limit (32767)"
-                )
-            en_offsets = list(offsets)
-            blob_strings = lang_strings
+            offsets, blob_strings = build_offset_table(code, lang_strings, None)
+            en_strings_for_fallback = lang_strings
         else:
-            offsets = []
-            current_offset = 0
-            blob_strings = []
-            for i, (s, en_s) in enumerate(zip(lang_strings, en_strings)):
-                if s == en_s:
-                    offsets.append(en_offsets[i] | 0x8000)
-                else:
-                    offsets.append(current_offset)
-                    current_offset += len(s.encode("utf-8")) + 1
-                    blob_strings.append(s)
-            if current_offset > 0x7FFF:
-                raise ValueError(
-                    f"Language {code}: blob size ({current_offset} bytes) exceeds "
-                    "15-bit offset limit (32767)"
-                )
+            offsets, blob_strings = build_offset_table(code, lang_strings, en_strings_for_fallback)
 
         # Flat string data blob — all strings concatenated with \0 separators.
         lines.append(f"const char STRINGS_{code}_DATA[] =")
@@ -917,6 +1013,17 @@ def main(
             )
             for key in missing_keys:
                 print(f"    - {key}")
+            print()
+            sys.exit(1)
+
+        # --- printf specifier check (translations must match English) ---
+        format_errors, format_warnings = check_format_specifiers(languages, string_keys, translations)
+        for message in format_warnings:
+            print(f"  WARNING: printf format: {message}")
+        if format_errors:
+            print(f"\n  CRITICAL: {len(format_errors)} translation(s) break printf formats:")
+            for message in format_errors:
+                print(f"    - {message}")
             print()
             sys.exit(1)
 

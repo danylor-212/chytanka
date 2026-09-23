@@ -280,6 +280,20 @@ int utf8SafeTruncateBuffer(const char* buf, int len) {
   return len;
 }
 
+void utf8TrimIncompleteTail(char* buf) {
+  if (buf == nullptr) return;
+  const size_t len = strlen(buf);
+  if (len == 0) return;
+  size_t leadPos = len - 1;
+  while (leadPos > 0 && (static_cast<unsigned char>(buf[leadPos]) & 0xC0) == 0x80) {
+    --leadPos;
+  }
+  const auto lead = static_cast<unsigned char>(buf[leadPos]);
+  // A stray continuation byte at the very start has no lead byte at all.
+  const size_t expected = (lead & 0xC0) == 0x80 ? len + 1 : static_cast<size_t>(utf8CodepointLen(lead));
+  if (len - leadPos < expected) buf[leadPos] = '\0';
+}
+
 size_t utf8RemoveLastChar(std::string& str) {
   if (str.empty()) return 0;
   size_t pos = str.size() - 1;

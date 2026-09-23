@@ -23,7 +23,9 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <string>
 #include <type_traits>
+#include <vector>
 
 #include "../settings/DictionarySelectActivity.h"
 #include "../settings/KOReaderSettingsActivity.h"
@@ -844,26 +846,58 @@ uint16_t resolveClippingJumpPage(Section& section, const Clipping& clipping, con
   return resolvedPage;
 }
 
+constexpr int kToastPadX = 20;
+constexpr int kToastPadY = 12;
+constexpr int kToastScreenMargin = 20;
+constexpr int kToastMaxLines = 3;
+
+int toastMaxTextWidth(const GfxRenderer& renderer) {
+  return renderer.getScreenWidth() - (kToastScreenMargin + kToastPadX) * 2;
+}
+
+// Toast geometry. `wrapped` stays empty (no allocation) for a message that
+// fits on one line, the common case; only a longer one is wrapped, once.
+struct ToastLayout {
+  ToastRect rect;
+  std::vector<std::string> wrapped;
+};
+
+ToastLayout computeToastLayout(const GfxRenderer& renderer, const char* msg) {
+  ToastLayout layout;
+  int msgW = renderer.getTextWidth(UI_10_FONT_ID, msg);
+  int lineCount = 1;
+  if (msgW > toastMaxTextWidth(renderer)) {
+    layout.wrapped = renderer.wrappedText(UI_10_FONT_ID, msg, toastMaxTextWidth(renderer), kToastMaxLines);
+    msgW = 0;
+    for (const auto& line : layout.wrapped) msgW = std::max(msgW, renderer.getTextWidth(UI_10_FONT_ID, line.c_str()));
+    lineCount = std::max(1, static_cast<int>(layout.wrapped.size()));
+  }
+  const int toastW = msgW + kToastPadX * 2;
+  const int toastH = renderer.getLineHeight(UI_10_FONT_ID) * lineCount + kToastPadY * 2;
+  layout.rect = {(renderer.getScreenWidth() - toastW) / 2, (renderer.getScreenHeight() - toastH) / 2, toastW, toastH};
+  return layout;
+}
+
 ToastRect computeToastRect(const GfxRenderer& renderer, const char* msg) {
-  constexpr int toastPadX = 20;
-  constexpr int toastPadY = 12;
-  const int msgW = renderer.getTextWidth(UI_10_FONT_ID, msg);
-  const int msgH = renderer.getLineHeight(UI_10_FONT_ID);
-  const int toastW = msgW + toastPadX * 2;
-  const int toastH = msgH + toastPadY * 2;
-  const int toastX = (renderer.getScreenWidth() - toastW) / 2;
-  const int toastY = (renderer.getScreenHeight() - toastH) / 2;
-  return {toastX, toastY, toastW, toastH};
+  return computeToastLayout(renderer, msg).rect;
 }
 
 void drawToastBuffer(const GfxRenderer& renderer, const char* msg) {
-  constexpr int toastPadX = 20;
-  constexpr int toastPadY = 12;
   const bool toastBackgroundBlack = ReaderUtils::readerForegroundBlack();
-  const ToastRect toast = computeToastRect(renderer, msg);
+  const ToastLayout layout = computeToastLayout(renderer, msg);
+  const ToastRect& toast = layout.rect;
   renderer.fillRect(toast.x, toast.y, toast.w, toast.h, toastBackgroundBlack);
   renderer.drawRect(toast.x, toast.y, toast.w, toast.h, !toastBackgroundBlack);
-  renderer.drawText(UI_10_FONT_ID, toast.x + toastPadX, toast.y + toastPadY, msg, !toastBackgroundBlack);
+  const int textX = toast.x + kToastPadX;
+  int lineY = toast.y + kToastPadY;
+  if (layout.wrapped.empty()) {
+    renderer.drawText(UI_10_FONT_ID, textX, lineY, msg, !toastBackgroundBlack);
+    return;
+  }
+  for (const auto& line : layout.wrapped) {
+    renderer.drawText(UI_10_FONT_ID, textX, lineY, line.c_str(), !toastBackgroundBlack);
+    lineY += renderer.getLineHeight(UI_10_FONT_ID);
+  }
 }
 
 void drawToast(const GfxRenderer& renderer, const char* msg) {

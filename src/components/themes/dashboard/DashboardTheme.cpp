@@ -8,6 +8,7 @@
 #include <HalGPIO.h>
 #include <HalStorage.h>
 #include <I18n.h>
+#include <Utf8.h>
 
 #include <algorithm>
 #include <cmath>
@@ -30,6 +31,7 @@
 #include "components/icons/night.h"
 #include "components/icons/streak.h"
 #include "fontIds.h"
+#include "util/LocaleFormat.h"
 
 namespace {
 constexpr int kContentInsetX4 = 20;
@@ -50,6 +52,8 @@ constexpr int kFooterBottomGap = 57;
 constexpr int kStatsRowCount = 7;
 constexpr int kStatsRowCountX4 = 6;
 constexpr int kStatsValueLabelGap = 1;
+// Clearance between the cover's right edge and the widest stats text.
+constexpr int kStatsCoverClearance = 8;
 
 bool isWideScreen(const GfxRenderer& renderer) { return renderer.getScreenWidth() >= 560; }
 
@@ -150,25 +154,6 @@ void drawRightAlignedText(const GfxRenderer& renderer, const int fontId, const i
   renderer.drawText(fontId, rightX - width, y, text, black, style);
 }
 
-void formatCompactDuration(const uint32_t seconds, char* buf, const size_t len) {
-  if (seconds < 60) {
-    snprintf(buf, len, "%s", tr(STR_STATS_LESS_THAN_MIN));
-    return;
-  }
-  const uint32_t minutes = (seconds + 30u) / 60u;
-  if (minutes < 60) {
-    snprintf(buf, len, "%lu min", static_cast<unsigned long>(minutes));
-    return;
-  }
-  const uint32_t hours = minutes / 60u;
-  const uint32_t remainder = minutes % 60u;
-  if (remainder == 0) {
-    snprintf(buf, len, "%luh", static_cast<unsigned long>(hours));
-  } else {
-    snprintf(buf, len, "%luh %lum", static_cast<unsigned long>(hours), static_cast<unsigned long>(remainder));
-  }
-}
-
 bool fallbackEstimatedTimeLeft(const BookReadingStats& stats, const float progressPercent, uint32_t& seconds) {
   seconds = 0;
   if (progressPercent <= 0.0f || progressPercent >= 100.0f || stats.totalReadingSeconds < 120) {
@@ -239,16 +224,31 @@ int statsBlockTop(const Rect& coverRect, const int index, const int blockH, cons
   return coverRect.y + index * (blockH + gap) + std::min(index, remainder);
 }
 
+// Stats text is right-aligned beside the cover; maxW keeps it off the cover.
 void drawStatsRow(const GfxRenderer& renderer, const int rightX, const int y, const char* value, const char* label,
-                  const bool black = true) {
+                  const int maxW, const bool black = true) {
   const int valueLineH = renderer.getLineHeight(UI_12_FONT_ID);
-  drawRightAlignedText(renderer, UI_12_FONT_ID, rightX, y, value, true, black);
-  drawRightAlignedText(renderer, SMALL_FONT_ID, rightX, y + valueLineH + kStatsValueLabelGap, label, false, black);
+  const std::string visibleValue = renderer.truncatedText(UI_12_FONT_ID, value, maxW, EpdFontFamily::BOLD);
+  const std::string visibleLabel = renderer.truncatedText(SMALL_FONT_ID, label, maxW);
+  drawRightAlignedText(renderer, UI_12_FONT_ID, rightX, y, visibleValue.c_str(), true, black);
+  drawRightAlignedText(renderer, SMALL_FONT_ID, rightX, y + valueLineH + kStatsValueLabelGap, visibleLabel.c_str(),
+                       false, black);
+}
+
+// A duration value that drops its minute part ("12h 55 min" -> "12h") when it
+// would not fit the stats column.
+void formatStatsDuration(const GfxRenderer& renderer, const uint32_t seconds, const LocaleFormat::DurationStyle style,
+                         const DurationRounding rounding, const int maxW, char* buf, const size_t len) {
+  formatDurationToFit(
+      LocaleFormat::durationPatterns(style), seconds, rounding, maxW,
+      [&renderer](const char* text) { return renderer.getTextWidth(UI_12_FONT_ID, text, EpdFontFamily::BOLD); }, buf,
+      len);
 }
 
 void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, const BookReadingStats* stats,
                         const float progressPercent, const bool black = true) {
   const int rightX = renderer.getScreenWidth() - contentInset(renderer) - (gpio.deviceIsX3() ? kPairInwardShiftX3 : 0);
+  const int maxW = std::max(1, rightX - (coverRect.x + coverRect.width) - kStatsCoverClearance);
   const int blockH = statsBlockHeight(renderer);
   const bool showRtcStats = halClock.isAvailable();
   const int rowCount = showRtcStats ? kStatsRowCount : kStatsRowCountX4;
@@ -270,16 +270,18 @@ void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, cons
 
   int rowIndex = 0;
   int rowY = statsBlockTop(coverRect, rowIndex, blockH, rowCount);
-  BookReadingStats::formatDuration(bookStats.totalReadingSeconds, value, sizeof(value));
-  drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_TIME_LBL), black);
+  formatStatsDuration(renderer, bookStats.totalReadingSeconds, LocaleFormat::DurationStyle::Long,
+                      DurationRounding::Floor, maxW, value, sizeof(value));
+  drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_TIME_LBL), maxW, black);
 
   rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
   if (hasEstimate && !bookStats.isCompleted) {
-    formatCompactDuration(estimatedSeconds, value, sizeof(value));
+    formatStatsDuration(renderer, estimatedSeconds, LocaleFormat::DurationStyle::Estimate, DurationRounding::Nearest,
+                        maxW, value, sizeof(value));
   } else {
     snprintf(value, sizeof(value), "-");
   }
-  drawStatsRow(renderer, rightX, rowY, value, tr(STR_TIME_LEFT_SHORT), black);
+  drawStatsRow(renderer, rightX, rowY, value, tr(STR_TIME_LEFT_SHORT), maxW, black);
 
   rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
   if (progressPercent >= 0.0f) {
@@ -287,32 +289,35 @@ void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, cons
   } else {
     snprintf(value, sizeof(value), "-");
   }
-  drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_PROGRESS_LBL), black);
+  drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_PROGRESS_LBL), maxW, black);
 
   if (showRtcStats) {
     rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
     if (hasDaySpan) {
       const uint16_t dailyAverageDays = std::max<uint16_t>(1, daysReading);
-      BookReadingStats::formatDuration(bookStats.totalReadingSeconds / dailyAverageDays, value, sizeof(value));
+      formatStatsDuration(renderer, bookStats.totalReadingSeconds / dailyAverageDays, LocaleFormat::DurationStyle::Long,
+                          DurationRounding::Floor, maxW, value, sizeof(value));
     } else {
       snprintf(value, sizeof(value), "-");
     }
-    drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_DAILY_AVG_LBL), black);
+    drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_DAILY_AVG_LBL), maxW, black);
   }
 
   rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
-  snprintf(value, sizeof(value), "%.1f", pagesPerMinute(bookStats.totalPagesTurned, bookStats.totalReadingSeconds));
-  drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_PAGES_PER_MIN), black);
+  LocaleFormat::formatDecimal(pagesPerMinute(bookStats.totalPagesTurned, bookStats.totalReadingSeconds), 1, value,
+                              sizeof(value));
+  drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_PAGES_PER_MIN), maxW, black);
 
   if (!showRtcStats) {
     rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
     snprintf(value, sizeof(value), "%u", static_cast<unsigned>(bookStats.sessionCount));
-    drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_SESSIONS_LBL), black);
+    drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_SESSIONS_LBL), maxW, black);
 
     rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
     const uint32_t avgSeconds = bookStats.sessionCount > 0 ? bookStats.totalReadingSeconds / bookStats.sessionCount : 0;
-    BookReadingStats::formatDuration(avgSeconds, value, sizeof(value));
-    drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_AVG_SESSION_LBL), black);
+    formatStatsDuration(renderer, avgSeconds, LocaleFormat::DurationStyle::Long, DurationRounding::Floor, maxW, value,
+                        sizeof(value));
+    drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_AVG_SESSION_LBL), maxW, black);
     return;
   }
 
@@ -324,7 +329,8 @@ void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, cons
   }
   formatReadingStatsShortDate(bookStats.startDate, startedDate, sizeof(startedDate));
   snprintf(label, sizeof(label), "%s %s", tr(STR_STATS_STARTED), startedDate);
-  drawStatsRow(renderer, rightX, rowY, value, label, black);
+  utf8TrimIncompleteTail(label);
+  drawStatsRow(renderer, rightX, rowY, value, label, maxW, black);
 
   rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
   ReadingStatsDate finishDisplayDate;
@@ -339,7 +345,7 @@ void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, cons
   }
   formatReadingStatsShortDate(finishDisplayDate, finishDate, sizeof(finishDate));
   drawStatsRow(renderer, rightX, rowY, finishDate,
-               bookStats.isCompleted ? tr(STR_STATS_FINISHED_DATE) : tr(STR_STATS_EST_FINISH_DATE), black);
+               bookStats.isCompleted ? tr(STR_STATS_FINISHED_DATE) : tr(STR_STATS_EST_FINISH_DATE), maxW, black);
 }
 
 bool dominantReaderTypeBucket(const GlobalReadingStats& globalStats, ReadingTimeBucket& bucketOut) {
@@ -488,11 +494,11 @@ void drawFooterStats(const GfxRenderer& renderer, const Rect& coverRect, const G
     char booksRead[16];
     const uint32_t totalReadingSeconds = globalStats != nullptr ? globalStats->totalReadingSeconds : 0;
     const uint32_t completedBooks = globalStats != nullptr ? globalStats->completedBooks : 0;
-    BookReadingStats::formatDuration(totalReadingSeconds, totalTime, sizeof(totalTime));
-    snprintf(booksRead, sizeof(booksRead), "%lu", static_cast<unsigned long>(completedBooks));
-
     const int halfW = renderer.getScreenWidth() / 2;
     const int maxTextW = std::max(1, halfW - inset * 2);
+    formatStatsDuration(renderer, totalReadingSeconds, LocaleFormat::DurationStyle::Long, DurationRounding::Floor,
+                        maxTextW, totalTime, sizeof(totalTime));
+    snprintf(booksRead, sizeof(booksRead), "%lu", static_cast<unsigned long>(completedBooks));
     drawLeftAnchoredFooterStat(renderer, coverRect.x, centerY, maxTextW, totalTime,
                                tr(STR_STATS_TOTAL_READING_TIME_LBL_SHORT), inverted);
     const int rightX = renderer.getScreenWidth() - inset;

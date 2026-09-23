@@ -33,12 +33,13 @@
 #include "components/icons/morning.h"
 #include "components/icons/night.h"
 #include "components/icons/streak.h"
+#include "components/themes/ButtonHintRenderer.h"
 #include "fontIds.h"
 
 namespace {
 struct MinimalQuote {
-  const char* text;
-  const char* author;
+  StrId text;
+  StrId author;
 };
 
 bool tabSlotIndexFromPoint(const Rect rect, const int tabCount, const int x, const int y, int& index) {
@@ -51,18 +52,13 @@ bool tabSlotIndexFromPoint(const Rect rect, const int tabCount, const int x, con
   return true;
 }
 
-constexpr MinimalQuote kQuotes[] = {
-    {"\"Nobody can guess how a person’s life or a people’s fate may be changed by one book, or one poem, or even a "
-     "single sentence.\"",
-     "Ursula K. Le Guin"},
-    {"\"I have always imagined that Paradise will be a kind of library.\"", "Jorge Luis Borges"},
-    {"\"A reader lives a thousand lives before he dies. The man who never reads lives only one.\"",
-     "George R.R. Martin"},
-    {"\"So many books, so little time.\"", "Frank Zappa"},
-    {"\"If you only read the books that everyone else is reading, you can only think what everyone else is thinking.\"",
-     "Haruki Murakami"},
-    {"\"Books are mirrors: you only see in them what you already have inside you.\"", "Carlos Ruiz Zafón"},
-    {"\"Books are a uniquely portable magic.\"", "Stephen King"}};
+constexpr MinimalQuote kQuotes[] = {{StrId::STR_MINIMAL_QUOTE_1, StrId::STR_MINIMAL_QUOTE_1_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_2, StrId::STR_MINIMAL_QUOTE_2_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_3, StrId::STR_MINIMAL_QUOTE_3_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_4, StrId::STR_MINIMAL_QUOTE_4_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_5, StrId::STR_MINIMAL_QUOTE_5_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_6, StrId::STR_MINIMAL_QUOTE_6_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_7, StrId::STR_MINIMAL_QUOTE_7_AUTHOR}};
 
 constexpr int kCoverCornerRadius = 8;
 constexpr int kProgressBarHeight = 6;
@@ -653,19 +649,29 @@ void MinimalTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, cons
   constexpr int x3ButtonPositions[] = {65, 157, 291, 383};
   const int* buttonPositions = screenWidth > 500 ? x3ButtonPositions : x4ButtonPositions;
   const char* labels[] = {btn1, btn2, btn3, btn4};
+  ButtonHintRow row;
+  layoutButtonHintRow(renderer, SMALL_FONT_ID, row, labels, buttonPositions, buttonWidth);
   const int selectedIndex = homeButtonHintSelection;
   homeButtonHintSelection = -1;
 
+  // A box that grew on the previous draw would leave its border behind on a
+  // fast refresh; clear it. Layouts that fit clear nothing extra.
+  static ButtonHintHistory history;
+  ButtonHintSpan staleSpans[ButtonHintRow::kCount];
+  const int staleCount = buttonHintSpansToClear(row, buttonPositions, buttonWidth, history, staleSpans);
+  for (int i = 0; i < staleCount; i++) {
+    renderer.fillRect(staleSpans[i].x, pageHeight - buttonY, staleSpans[i].width, buttonHeight, false);
+  }
+
   for (int i = 0; i < 4; i++) {
     const int x = buttonPositions[i];
-    const bool hasLabel = labels[i] != nullptr && labels[i][0] != '\0';
-    if (hasLabel) {
-      TouchRegistry::getInstance().add(Rect{x, pageHeight - buttonY, buttonWidth, buttonHeight}, i,
-                                       TouchRegistry::Button);
+    if (row.labelled[i]) {
+      const Rect box{row.spans[i].x, pageHeight - buttonY, row.spans[i].width, buttonHeight};
+      TouchRegistry::getInstance().add(box, i, TouchRegistry::Button);
       const Color background = i == selectedIndex ? Color::LightGray : Color::White;
-      renderer.fillRoundedRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, kButtonCornerRadius, background);
-      renderer.drawRoundedRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, 1, kButtonCornerRadius, true, true,
-                               false, false, true);
+      renderer.fillRoundedRect(box.x, box.y, box.width, box.height, kButtonCornerRadius, background);
+      renderer.drawRoundedRect(box.x, box.y, box.width, box.height, 1, kButtonCornerRadius, true, true, false, false,
+                               true);
     } else if (labels[i] != nullptr) {
       // Clear the previous full-sized hint before drawing the inactive marker.
       renderer.fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false);
@@ -680,11 +686,11 @@ void MinimalTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, cons
   const int textY = invertText ? textYOffset : pageHeight - buttonY + textYOffset;
 
   for (int i = 0; i < 4; i++) {
-    if (labels[i] != nullptr && labels[i][0] != '\0') {
-      const int x = buttonPositions[invertText ? 3 - i : i];
-      const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, labels[i]);
-      const int textX = x + (buttonWidth - 1 - textWidth) / 2;
-      renderer.drawText(SMALL_FONT_ID, textX, textY, labels[i]);
+    if (row.labelled[i]) {
+      const ButtonHintSpan& span = row.spans[i];
+      const int x = invertText ? mirroredButtonHintX(buttonPositions, 4, i, span, buttonWidth) : span.x;
+      const int textX = x + (span.width - 1 - row.textWidths[i]) / 2;
+      renderer.drawText(SMALL_FONT_ID, textX, textY, row.text(i));
     }
   }
 
@@ -708,7 +714,7 @@ void MinimalTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const s
     const MinimalQuote& quote = kQuotes[selectedQuoteIndex()];
     constexpr int quotePadding = 18;
     const int textW = coverRect.width - quotePadding * 2;
-    auto lines = renderer.wrappedText(UI_12_FONT_ID, quote.text, textW, 6);
+    auto lines = renderer.wrappedText(UI_12_FONT_ID, I18N.get(quote.text), textW, 6);
     int lineY = coverRect.y + 88;
     const int lineH = renderer.getLineHeight(UI_12_FONT_ID);
     for (const auto& line : lines) {
@@ -716,9 +722,10 @@ void MinimalTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const s
       lineY += lineH;
     }
 
-    const int authorW = renderer.getTextWidth(UI_10_FONT_ID, quote.author, EpdFontFamily::ITALIC);
+    const char* author = I18N.get(quote.author);
+    const int authorW = renderer.getTextWidth(UI_10_FONT_ID, author, EpdFontFamily::ITALIC);
     renderer.drawText(UI_10_FONT_ID, coverRect.x + coverRect.width - quotePadding - authorW,
-                      coverRect.y + coverRect.height - 110, quote.author, true, EpdFontFamily::ITALIC);
+                      coverRect.y + coverRect.height - 110, author, true, EpdFontFamily::ITALIC);
     coverRendered = false;
     coverBufferStored = false;
     return;

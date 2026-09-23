@@ -22,6 +22,7 @@
 #include "components/icons/cover.h"
 #include "components/icons/readingStatsIcons.h"
 #include "fontIds.h"
+#include "util/LocaleFormat.h"
 
 namespace {
 // Cover layout — keep Lyra Carousel's general geometry, but render the books
@@ -271,21 +272,6 @@ void fillPerspectiveSilhouette(const GfxRenderer& renderer, int x, int y, int wi
   }
 }
 
-void formatCompactReadingTime(uint32_t seconds, char* buf, size_t len) {
-  if (seconds < 60) {
-    snprintf(buf, len, "%s", tr(STR_STATS_LESS_THAN_MIN));
-    return;
-  }
-
-  const uint32_t hours = seconds / 3600;
-  const uint32_t minutes = (seconds % 3600) / 60;
-  if (hours == 0) {
-    snprintf(buf, len, "%lum", static_cast<unsigned long>(minutes));
-  } else {
-    snprintf(buf, len, "%luh %lum", static_cast<unsigned long>(hours), static_cast<unsigned long>(minutes));
-  }
-}
-
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -531,7 +517,7 @@ void LyraCarouselTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
 
     if (hasStats) {
       char buf[48];
-      formatCompactReadingTime(stats->totalReadingSeconds, buf, sizeof(buf));
+      LocaleFormat::formatDuration(stats->totalReadingSeconds, buf, sizeof(buf), LocaleFormat::DurationStyle::Carousel);
       const auto timeLabel = renderer.truncatedText(footerLabelFontId, buf, footerWidth, EpdFontFamily::REGULAR);
       renderer.drawText(footerLabelFontId, footerX, infoY, timeLabel.c_str(), true, EpdFontFamily::REGULAR);
     }

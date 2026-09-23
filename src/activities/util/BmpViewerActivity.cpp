@@ -41,6 +41,13 @@ void drawImageError(GfxRenderer& renderer, const MappedInputManager& mappedInput
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
 
+// "Invalid PNG File", with the image format as the argument.
+void drawImageErrorFormat(GfxRenderer& renderer, const MappedInputManager& mappedInput, const char* imageFormat) {
+  char message[64];
+  snprintf(message, sizeof(message), tr(STR_INVALID_IMAGE_FILE_FORMAT), imageFormat);
+  drawImageError(renderer, mappedInput, message);
+}
+
 }  // namespace
 
 BmpViewerActivity::BmpViewerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string path)
@@ -90,7 +97,7 @@ void BmpViewerActivity::loadSiblingImages() {
 bool BmpViewerActivity::renderPngImage() {
   ImageDimensions dims;
   if (!PngToFramebufferConverter::getDimensionsStatic(filePath, dims)) {
-    drawImageError(renderer, mappedInput, "Invalid PNG File");
+    drawImageErrorFormat(renderer, mappedInput, "PNG");
     return false;
   }
 
@@ -121,7 +128,7 @@ bool BmpViewerActivity::renderPngImage() {
   PngToFramebufferConverter converter;
   renderer.clearScreen();
   if (!converter.decodeToFramebuffer(filePath, renderer, config)) {
-    drawImageError(renderer, mappedInput, "Invalid PNG File");
+    drawImageErrorFormat(renderer, mappedInput, "PNG");
     return false;
   }
   renderer.preserveImagePolarity(x, y, drawWidth, drawHeight);
@@ -233,13 +240,13 @@ void BmpViewerActivity::onEnter() {
 
     } else {
       // Handle file parsing error
-      drawImageError(renderer, mappedInput, "Invalid BMP File");
+      drawImageErrorFormat(renderer, mappedInput, "BMP");
     }
 
     file.close();
   } else {
     // Handle file open error
-    drawImageError(renderer, mappedInput, "Could not open file");
+    drawImageError(renderer, mappedInput, tr(STR_FILE_OPEN_FAILED));
   }
 }
 

@@ -18,6 +18,7 @@
 #include "components/UiAppHelpers.h"
 #endif
 #include "fontIds.h"
+#include "util/LocaleFormat.h"
 
 #if CROSSINK_APP_CAP_TOUCH
 namespace fui = freeink::ui;
@@ -59,15 +60,6 @@ bool contains(const Rect& rect, const int x, const int y) {
   return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
 }
 
-void formatCompactSeconds(const int seconds, char* buf, const size_t len) {
-  if (seconds < 60) {
-    snprintf(buf, len, "%ds", seconds);
-  } else if (seconds % 60 == 0) {
-    snprintf(buf, len, "%dm", seconds / 60);
-  } else {
-    snprintf(buf, len, "%dm %ds", seconds / 60, seconds % 60);
-  }
-}
 }  // namespace
 
 IntervalSelectionActivity::IntervalSelectionActivity(
@@ -129,7 +121,7 @@ void IntervalSelectionActivity::formatValue(char* const buf, const size_t len) c
   } else if (showPercentValue) {
     snprintf(buf, len, "%d%%", value);
   } else if (valueFormatId == StrId::STR_SECONDS_VALUE_FORMAT) {
-    formatCompactSeconds(value, buf, len);
+    LocaleFormat::formatSeconds(static_cast<uint32_t>(std::max(0, value)), buf, len);
   } else if (valueFormatId != StrId::STR_NONE_OPT) {
     snprintf(buf, len, I18N.get(valueFormatId), static_cast<unsigned int>(value));
   } else {
