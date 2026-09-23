@@ -246,7 +246,12 @@ After every rebase onto a new upstream CrossInk tag:
 5. Check the language default hook in `src/main.cpp` (~line 1313,
    `#ifdef CHYTANKA_DEFAULT_LANGUAGE`) still sits where it did relative to
    `SETTINGS.loadFromFile()` — it must run strictly before that call for the
-   "saved language wins" behavior described above to hold.
+   "saved language wins" behavior described above to hold. The same applies
+   to the `#ifdef CHYTANKA` reader defaults right below it (Bitter +
+   hyphenation on a fresh device): confirm `fromJson()` still falls back to
+   the in-memory value for `hyphenationEnabled`, that `toJson()` still writes
+   `fontFamily` (its loader falls back to 0 = Lexend Deca when the key is
+   missing), and that the `FONT_FAMILY` enum still has `BITTER`.
 6. `CROSSINK_SHOW_SLEEP_BUILD_INFO` (used by `[env:debug]`, never needed in
    `[env:ua]`): stock CrossInk draws that line at `H/2 + 118`, which would
    land on Chytanka's larger brand block (240x240 logo lifted 40 px above

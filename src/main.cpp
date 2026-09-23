@@ -1315,6 +1315,13 @@ void setup() {
   // when the settings file carries a "language" key, so a saved choice wins.
   SETTINGS.language = static_cast<uint8_t>(Language::CHYTANKA_DEFAULT_LANGUAGE);
 #endif
+#ifdef CHYTANKA
+  // Fork-only reader defaults: Lexend Deca has only a partial Cyrillic subset,
+  // Bitter covers U+0400-045F. A settings file always carries both keys, so a
+  // saved choice wins; new books copy these globals into their per-book state.
+  SETTINGS.fontFamily = CrossPointSettings::BITTER;
+  SETTINGS.hyphenationEnabled = 1;
+#endif
   SETTINGS.loadFromFile();
   Storage.installDateTimeCallback(&SETTINGS.clockUtcOffsetQ);
   APP_STATE.loadFromFile();
