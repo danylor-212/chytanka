@@ -1,173 +1,128 @@
-> **This is a personal fork of [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader)** with a focus on improved fonts and minimal reading stats.
+<div align="center">
 
-### Supported Devices
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/chytanka/assets/logo-dark.png">
+  <img src="docs/chytanka/assets/logo.png" width="96" alt="Логотип Читанки: тризуб на обкладинці книжки">
+</picture>
 
-- Xteink X3
-- Xteink X4
-- Xteink X4 Pro
-- Xteink X4 Classic
-- Seeed Studio Sticky
+# Читанка
 
-## What's different in this fork
+**Українська прошивка для електронних читалок Xteink X3 і X4**<br>
+на основі [CrossInk](https://github.com/uxjulia/CrossInk) · [CrossPoint](https://github.com/crosspoint-reader/crosspoint-reader)
 
-My goal with this fork was to maintain the core Crosspoint firmware while integrating my preferred typography and some lightweight reading statistics. I’ve focused on keeping the underlying system stable while layering in a few "nice-to-have" features and UI refinements along the way.
+<img src="docs/chytanka/assets/hero.png" alt="Читанка на Xteink X4 і X3" width="820">
 
-<table>
-  <tr>
-    <td align="center">
-      <img src="./docs/images/bitter-small-15-margin.jpg" alt="Font: Bitter, Size: 12 pt, Margin: 15" /><br/>
-      <em>Font: Bitter, Size: 12 pt, Margin: 15</em>
-    </td>
-    <td align="center">
-      <img src="./docs/images/reading-stats.jpg" alt="Reading Stats with custom front button mapping shown" /><br/>
-      <em>Reading Stats with custom front button mapping shown</em>
-    </td>
-  </tr>
-</table>
+[Що всередині](#що-всередині) · [Екрани](#екрани) · [Цитати](#цитати-на-екрані-сну) · [Встановлення](#встановлення) · [Збірка](#збірка-з-вихідного-коду) · [English](#english)
 
-### Highlights
-
-- New reader fonts: Lexend Deca and Bitter.
-- Music notation and selected supplemental Unicode glyph support to be able to render Project Hail Mary accurately.
-- Added a custom `Minimal` theme and sleep screen option for the minimalists out there.
-- Added a custom `Dashboard` theme and sleep screen option for reading stats enthusiasts.
-- Reader font sizes: 10 pt, 12 pt, 14 pt, and 16 pt.
-- Added ~~strikethrough~~ support.
-- Made <u>underlines</u> thicker for better visibility.
-- Added support for `<hr>` section breaks.
-- Added support for "redaction" style rendering.
-- Added improved support for tables with simple markup.
-- Added ability to add bookmarks.
-- Added ability to remap front buttons that only applies in the reader.
-- Added Focus Reading and Guide Dots as optional reader modes.
-- Added Force Paragraph Indents for books that render as one giant wall of text.
-- Added ability to pin a sleep image as a favorite. The favorited image will always be displayed when your sleep settings are set to `Custom` or `Cover + Custom` (when no cover is available).
-- Added more in-reader control remapping options for side buttons, short power button clicks, and long-press menu actions, and more.
-- Added ability to mark a book as finished from the in-book menu. A pop-up will also display once 99% of the book is reached. This status allows tracking of total books read.
-- Added ability to move finished books to "Read" folder.
-- In-book menu to quickly adjust reader options without having to exit the book.
-- Reading stats: total books read, total reading time, number of sessions, pages turned, average session time, pages turned per minute. You can also set your reading stats as your sleep screen.
-- All-time reading stats [syncing](./docs/reading-stats-sync.md) between two CrossInk devices.
-- Reading [progress sync](./docs/nearby-position-sync.md) between two CrossInk devices.
-- Added customizable Auto Page Turn Interval (anything between 5-120 seconds).
-- Added ability to view Recent Books as a 3x3 grid view.
-- To view a more detailed list for each version, visit the [releases](https://github.com/uxjulia/CrossInk/releases) page to read release notes.
+</div>
 
 ---
 
-### Reader Fonts
+> [!NOTE]
+> **Статус: підготовка першого релізу.** Прошивка збирається й проходить автоматичні тести, але ще не пройшла повну перевірку на пристрої. Перш ніж встановлювати, зробіть бекап (див. [Встановлення](#встановлення)).
 
-The default fonts have been replaced with Lexend Deca and Bitter. These fonts have been chosen specifically to improve reading fluency and e-ink performance. These 'sturdier' typefaces feature uniform stroke weights and open geometries, allowing the X4/X3 to render crisp, high-contrast text with font-aliasing on while significantly reducing ghosting and artifacts.
+## Що всередині
 
-- [Lexend Deca](https://fonts.google.com/specimen/Lexend+Deca) - A research-backed sans-serif typeface designed to improve reading fluency. Lexend was engineered based on the theory that reading issues are often a design problem (visual crowding) rather than a cognitive one.
-- [Bitter](https://fonts.google.com/specimen/Bitter) - A "contemporary" slab serif typeface for text, it is specially designed for comfortably reading on digital screens. The consistent stroke weight of Bitter helps it render particularly well on e-ink devices. The medium weight has been chosen specifically for improved rendering on the X4/X3.
+Читанка — це CrossInk, доведений до ладу для українського читача. Усе, за що люблять CrossInk (панель зі статистикою читання, швидкий рушій EPUB, синхронізація з KOReader), лишається. Поверх додано:
 
-The UI now uses [Inter](https://fonts.google.com/specimen/Inter) as the display font which has improved readability at smaller sizes.
+- 🇺🇦 **Інтерфейс повністю українською.** Перекладено всі 922 рядки, без англійських «дірок». Одиниці часу (`12 год 55 хв`), десяткова кома, назви місяців. Довгі слова не вилазять за межі кнопок і колонок.
+- ✂️ **Правильні українські переноси.** Виправлено переноси слів з великої літери (`Є І Ї Ґ`, зокрема в заголовках КАПСОМ) і слів з апострофом `ʼ` («обʼєднання», «під’-їзд» з дефісом за правописом).
+- 📜 **Цитати української літератури на екрані сну.** 50 карток уже вбудовано в прошивку, повний набір зі 109 можна покласти на SD-картку. Без повторів, темний режим інвертує картку.
+- 📚 **Бренд Читанки.** Логотип на екрані завантаження, назва пристрою `Chytanka X4 CrossInk`.
+- 🔄 **Власний канал оновлень.** OTA шукає релізи Читанки, тож оновлення CrossInk не перезапише українську збірку.
+- ⚡ **Легша збірка.** Вшито лише дві мови інтерфейсу (українська й англійська), тож прошивка менша й лишає більше місця.
 
-### Music and Supplemental Glyphs
+Підтримувані пристрої: **Xteink X4** і **Xteink X3** (ESP32-C3). X4 Pro, X4 Classic і Sticky поки не підтримуються.
 
-- Built-in reader fonts include music notation, selected Cyrillic glyphs, and the Project Hail Mary CJK fallback ranges. Additional SD-card fonts retain emoji fallback support.
+## Екрани
 
----
+<div align="center">
+<img src="docs/chytanka/assets/gallery.png" alt="Читалка, налаштування, статистика та бібліотека українською" width="900">
+</div>
 
-### Font Sizes
+Зліва направо: сторінка книжки з українськими переносами, налаштування, статистика читання, бібліотека. Усе це справжній вивід прошивки із симулятора CrossInk; статистика на скрінах демонстраційна.
 
-CrossInk includes 10 pt, 12 pt, 14 pt, and 16 pt built-in reader font sizes.
+<div align="center">
+<img src="docs/chytanka/assets/boot-sleep.png" alt="Екран завантаження та екрани сну: світлий і темний" width="700">
+</div>
 
-See [SD Card Fonts](./docs/sd-card-fonts.md) for installing additional font families and size ranges.
+Екран завантаження з логотипом Читанки та екран сну в світлому й темному режимах.
 
----
+<details>
+<summary><b>Xteink X3</b>: ті самі екрани на меншому пристрої</summary>
+<br>
+<div align="center">
+<img src="docs/chytanka/assets/x3-gallery.png" alt="Читанка на Xteink X3: завантаження, панель, статистика, екран сну" width="900">
+</div>
+</details>
 
-### Reader features
+## Цитати на екрані сну
 
-Reader Options, Focus Reading, Guide Dots, Force Paragraph Indents, reading stats, and finished-book behavior are documented in [Reader Features](./docs/reader-features.md).
+<div align="center">
+<img src="docs/chytanka/assets/quotes.png" alt="Цитати Лесі Українки, Антонича, Котляревського та Підмогильного" width="900">
+</div>
 
-### Custom button actions
+Щоразу, коли читалка засинає, на екрані з'являється нова цитата: Шевченко, Франко, Леся Українка, Коцюбинський, Стефаник, Кобилянська, Хвильовий, Антонич, Плужник, Олесь, Теліга та ще два десятки авторів.
 
-CrossInk adds configurable button shortcuts.
+- **50 цитат уже вбудовано в прошивку.** Кожна картка стиснута до ~6 КБ і розпаковується рядок за рядком, тож у пам'яті ніколи не лежить повне зображення. Показ іде «мішечком»: кожна картка з'являється раз за коло.
+- **Повний набір зі 109 карток** можна покласти в теку `/.sleep/` на SD-картці й увімкнути режим сну *Custom*.
+- **Кожна цитата звірена дослівно** з повним текстом твору. Усі автори — у суспільному надбанні (померли до 1954 року). Перелік джерел і відхилених «інтернет-цитат» — у [`docs/chytanka/quotes.md`](docs/chytanka/quotes.md).
+- **Темний режим сну** (Dark) показує картку інвертованою: світлий текст на чорному, у 4 відтінках сірого.
 
-See [Controls](./docs/controls.md) for the full action list and defaults.
+<div align="center">
+<img src="docs/chytanka/assets/x3-quote.png" alt="Цитата Шевченка на Xteink X3" width="260">
+</div>
 
----
+## Встановлення
 
-## Tips for the best reading experience
+> [!WARNING]
+> Прошивка через USB перезаписує всю пам'ять пристрою. Спершу зробіть повний бекап, тоді повернутися до попередньої прошивки можна однією командою.
 
-CrossInk runs on an ESP32-C3 with limited RAM, so very large folders or complex EPUBs can be slower than they would be on a phone, tablet, or desktop app.
+1. **Бекап** (приблизно 2 хвилини, пристрій підключений USB-кабелем):
+   ```bash
+   pipx install esptool
+   esptool --chip esp32c3 --port /dev/ttyACM0 read-flash 0 ALL x4-backup.bin
+   ```
+2. **Прошивка.** Файл `firmware-x3-x4.bin` беріть зі сторінки [релізів](../../releases), або зберіть самі (див. нижче) і прошийте через `pio run -e ua -t upload`.
+3. **Мова.** Якщо на пристрої раніше стояв CrossInk або CrossPoint, він пам'ятає збережену мову. Перемкніть один раз: *Settings → Language → Українська*. На новому пристрої українська вмикається сама.
+4. **Цитати на SD (за бажанням).** Скопіюйте картки в `/.sleep/` і виберіть режим сну *Custom*.
 
-- Keep folders under about 200 files. For the smoothest browsing, aim for 50-100 files per folder.
-- Having 1000+ books on the SD card is fine if they are split into smaller folders, such as by author, series, genre, or read/unread status.
-- Avoid putting every book in the SD card root. The file browser has to scan and sort the current folder before it can show it.
-- Text-first EPUBs are the best fit. Large image-heavy EPUBs, scanned books, comics, and omnibus files with thousands of sections may load slowly or fail under memory pressure.
-- As a rough target, EPUBs under 20 MB tend to work the best. Files over 50 MB may still work, but they are more likely to be slow or memory-sensitive, especially if they contain many large images.
-- If an EPUB is unusually slow, try [optimizing](./docs/webserver.md#epub-optimization) it with the built-in web optimizer (via File Transfer) before copying it to the SD card: remove unused high-resolution images, split very large omnibus files, and avoid embedding multiple full font families when possible.
-- Use a reliable SD card and leave some free space. CrossInk stores settings, reading progress, cache files, stats, and generated book data on the card.
+**Відкат:** `esptool --chip esp32c3 --port /dev/ttyACM0 write-flash 0 x4-backup.bin`
 
----
+**Перехід з CrossInk:** налаштування, статистика читання й бібліотека зберігаються. Кеш книжок перебудується, тож кожна книжка першого разу відкриється трохи повільніше.
 
-## Installation
+## Збірка з вихідного коду
 
-The fastest way to install Crossink is by using Inky, Crossink's web companion app: https://inky.crossink.dev/#flash-tools
-
-Download a `firmware-*.bin` from the [releases page](https://github.com/uxjulia/CrossInk/releases), then flash it with the web installer or command line.
-
-See [Installation](./docs/installation.md) for step-by-step flashing and revert instructions.
-
----
-
-## Guides & Documentation
-
-Visit [https://www.crossink.dev](https://www.crossink.dev) for more user guides and additional documentation.
-
----
-
-## Development quick start
-
-CrossInk uses PlatformIO for building and flashing firmware. See [Getting Started](./docs/development/getting-started.md) for prerequisites, clone setup, and validation commands.
-
-### Nix/NixOS
-
-Nix/NixOS users can enter the development shell with either `nix develop` (flakes) or `nix-shell`:
+Потрібен [PlatformIO Core від pioarduino](https://github.com/pioarduino/platformio-core) **v6.1.19**, як у CI. Шлях до проєкту має бути без пробілів (цього вимагає ESP-IDF).
 
 ```bash
-nix develop -f nix
-# or
-nix-shell nix
+git clone --recursive https://github.com/danylor-212/chytanka.git
+cd chytanka
+pio run -e ua                 # Читанка для X3/X4
+pio run -e ua -t upload       # прошити підключений пристрій
 ```
 
-To flash a connected ESP32-C3 device, enable PlatformIO's udev rules in your NixOS configuration:
+Правила оновлення від CrossInk і випуску релізів описано в [`docs/chytanka/RELEASING.md`](docs/chytanka/RELEASING.md).
 
-```nix
-services.udev.packages = with pkgs; [ platformio-core.udev ];
-```
+## Подяки
 
-After rebuilding the system configuration, reconnect the device or reload udev rules.
+- **[CrossInk](https://github.com/uxjulia/CrossInk)** від Julia Nguyen: основа прошивки, панель і статистика читання. Оригінальний README — у [`docs/chytanka/CROSSINK_README.md`](docs/chytanka/CROSSINK_README.md).
+- **[CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader)**: рушій читалки, від якого походить CrossInk. Виправлення українських переносів готуємо як внесок у CrossPoint, щоб їх отримали всі.
+- Шрифт карток **[Literata](https://github.com/googlefonts/literata)** (SIL Open Font License).
+- Тексти цитат: [uk.wikisource.org](https://uk.wikisource.org), [ukrlib.com.ua](https://www.ukrlib.com.ua), академічне ПЗТ Шевченка ([litopys.org.ua](http://litopys.org.ua)).
 
-### Build / flash / monitor
-
-Connect your device to your computer via a USB cable. Before the first build, initialize the repository's submodules (including `freeink-sdk`):
-
-```sh
-git submodule update --init --recursive
-```
-
-Then flash the firmware using the correct environment for the device. The `default` environment is for the X3/X4 devices. ESP32-S3 devices have their own named environments.
-
-```sh
-pio run -e default --target upload
-```
-
-If PlatformIO reports `PackageException: Can not create a symbolic link for freeink-sdk/libs/hardware/BatteryMonitor, not a directory`, the `freeink-sdk` submodule is not initialized. Run the submodule command above and retry.
-
-See [Testing and Debugging](./docs/development/testing-debugging.md) for serial logging, simulator checks, static analysis, and bug-report guidance.
+Ліцензія: **MIT**, як у CrossInk і CrossPoint.
 
 ---
 
-## Notice on Contributions
+## English
 
-This repository does not accept pull requests. Feature requests may be opened in [discussions](https://github.com/uxjulia/CrossInk/discussions), but major features requiring ongoing support should be directed upstream to [CrossPoint](https://github.com/crosspoint-reader/crosspoint-reader).
+**Chytanka** («Читанка», *a reader*) is a Ukrainian edition of [CrossInk](https://github.com/uxjulia/CrossInk) firmware for the Xteink X3 and X4 e-readers. It keeps everything CrossInk does (the dashboard with reading stats, the fast EPUB engine, KOReader sync) and adds:
 
----
+- **A complete Ukrainian UI.** All 922 strings are translated, with localised durations, decimal comma and dates, and layout fixes so longer words fit.
+- **Correct Ukrainian hyphenation:** capital `Є І Ї Ґ` letters and the `ʼ` apostrophe (being prepared as an upstream contribution to CrossPoint).
+- **Ukrainian literature on the sleep screen.** 50 compressed cards are built into the firmware, and the full set of 109 can go on the SD card. Every quote was checked word for word against its source text, and all authors are public domain.
+- **Chytanka branding and its own OTA channel**, so a CrossInk update can't replace it.
+- **UK + EN built-in** for a smaller image.
 
-If you'd like to show some love and support ongoing development, please consider supporting me on Ko-fi.
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Q5Q01M6S7)
+Status: preparing the first release; not yet fully tested on hardware. Back up your device before flashing. MIT licensed.
