@@ -38,8 +38,8 @@
 
 namespace {
 struct MinimalQuote {
-  const char* text;
-  const char* author;
+  StrId text;
+  StrId author;
 };
 
 bool tabSlotIndexFromPoint(const Rect rect, const int tabCount, const int x, const int y, int& index) {
@@ -52,18 +52,13 @@ bool tabSlotIndexFromPoint(const Rect rect, const int tabCount, const int x, con
   return true;
 }
 
-constexpr MinimalQuote kQuotes[] = {
-    {"\"Nobody can guess how a person’s life or a people’s fate may be changed by one book, or one poem, or even a "
-     "single sentence.\"",
-     "Ursula K. Le Guin"},
-    {"\"I have always imagined that Paradise will be a kind of library.\"", "Jorge Luis Borges"},
-    {"\"A reader lives a thousand lives before he dies. The man who never reads lives only one.\"",
-     "George R.R. Martin"},
-    {"\"So many books, so little time.\"", "Frank Zappa"},
-    {"\"If you only read the books that everyone else is reading, you can only think what everyone else is thinking.\"",
-     "Haruki Murakami"},
-    {"\"Books are mirrors: you only see in them what you already have inside you.\"", "Carlos Ruiz Zafón"},
-    {"\"Books are a uniquely portable magic.\"", "Stephen King"}};
+constexpr MinimalQuote kQuotes[] = {{StrId::STR_MINIMAL_QUOTE_1, StrId::STR_MINIMAL_QUOTE_1_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_2, StrId::STR_MINIMAL_QUOTE_2_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_3, StrId::STR_MINIMAL_QUOTE_3_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_4, StrId::STR_MINIMAL_QUOTE_4_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_5, StrId::STR_MINIMAL_QUOTE_5_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_6, StrId::STR_MINIMAL_QUOTE_6_AUTHOR},
+                                    {StrId::STR_MINIMAL_QUOTE_7, StrId::STR_MINIMAL_QUOTE_7_AUTHOR}};
 
 constexpr int kCoverCornerRadius = 8;
 constexpr int kProgressBarHeight = 6;
@@ -719,7 +714,7 @@ void MinimalTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const s
     const MinimalQuote& quote = kQuotes[selectedQuoteIndex()];
     constexpr int quotePadding = 18;
     const int textW = coverRect.width - quotePadding * 2;
-    auto lines = renderer.wrappedText(UI_12_FONT_ID, quote.text, textW, 6);
+    auto lines = renderer.wrappedText(UI_12_FONT_ID, I18N.get(quote.text), textW, 6);
     int lineY = coverRect.y + 88;
     const int lineH = renderer.getLineHeight(UI_12_FONT_ID);
     for (const auto& line : lines) {
@@ -727,9 +722,10 @@ void MinimalTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const s
       lineY += lineH;
     }
 
-    const int authorW = renderer.getTextWidth(UI_10_FONT_ID, quote.author, EpdFontFamily::ITALIC);
+    const char* author = I18N.get(quote.author);
+    const int authorW = renderer.getTextWidth(UI_10_FONT_ID, author, EpdFontFamily::ITALIC);
     renderer.drawText(UI_10_FONT_ID, coverRect.x + coverRect.width - quotePadding - authorW,
-                      coverRect.y + coverRect.height - 110, quote.author, true, EpdFontFamily::ITALIC);
+                      coverRect.y + coverRect.height - 110, author, true, EpdFontFamily::ITALIC);
     coverRendered = false;
     coverBufferStored = false;
     return;
