@@ -30,6 +30,7 @@
 #include "components/icons/night.h"
 #include "components/icons/streak.h"
 #include "fontIds.h"
+#include "util/LocaleFormat.h"
 
 namespace {
 constexpr int kContentInsetX4 = 20;
@@ -150,25 +151,6 @@ void drawRightAlignedText(const GfxRenderer& renderer, const int fontId, const i
   renderer.drawText(fontId, rightX - width, y, text, black, style);
 }
 
-void formatCompactDuration(const uint32_t seconds, char* buf, const size_t len) {
-  if (seconds < 60) {
-    snprintf(buf, len, "%s", tr(STR_STATS_LESS_THAN_MIN));
-    return;
-  }
-  const uint32_t minutes = (seconds + 30u) / 60u;
-  if (minutes < 60) {
-    snprintf(buf, len, "%lu min", static_cast<unsigned long>(minutes));
-    return;
-  }
-  const uint32_t hours = minutes / 60u;
-  const uint32_t remainder = minutes % 60u;
-  if (remainder == 0) {
-    snprintf(buf, len, "%luh", static_cast<unsigned long>(hours));
-  } else {
-    snprintf(buf, len, "%luh %lum", static_cast<unsigned long>(hours), static_cast<unsigned long>(remainder));
-  }
-}
-
 bool fallbackEstimatedTimeLeft(const BookReadingStats& stats, const float progressPercent, uint32_t& seconds) {
   seconds = 0;
   if (progressPercent <= 0.0f || progressPercent >= 100.0f || stats.totalReadingSeconds < 120) {
@@ -275,7 +257,8 @@ void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, cons
 
   rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
   if (hasEstimate && !bookStats.isCompleted) {
-    formatCompactDuration(estimatedSeconds, value, sizeof(value));
+    LocaleFormat::formatDuration(estimatedSeconds, value, sizeof(value), LocaleFormat::DurationStyle::Long,
+                                 DurationRounding::Nearest);
   } else {
     snprintf(value, sizeof(value), "-");
   }
@@ -301,7 +284,8 @@ void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, cons
   }
 
   rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
-  snprintf(value, sizeof(value), "%.1f", pagesPerMinute(bookStats.totalPagesTurned, bookStats.totalReadingSeconds));
+  LocaleFormat::formatDecimal(pagesPerMinute(bookStats.totalPagesTurned, bookStats.totalReadingSeconds), 1, value,
+                              sizeof(value));
   drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_PAGES_PER_MIN), black);
 
   if (!showRtcStats) {

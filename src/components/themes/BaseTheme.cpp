@@ -25,6 +25,7 @@
 #include "components/UITheme.h"
 #include "components/UIThemeTokens.h"
 #include "fontIds.h"
+#include "util/LocaleFormat.h"
 
 // Internal constants
 namespace {
@@ -924,6 +925,8 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
     } else {
       snprintf(progressStr, sizeof(progressStr), "%d/%d", currentPage, pageCount);
     }
+
+    if (percentageDecimals > 0) LocaleFormat::localizeDecimalSeparator(progressStr);
 
     progressTextWidth = renderer.getTextWidth(SMALL_FONT_ID, progressStr);
     const int estimateWidth = showEstimate ? renderer.getTextWidth(UI_10_FONT_ID, "~") : 0;

@@ -17,6 +17,7 @@
 #include "components/UITheme.h"
 #include "components/icons/listIcons.h"
 #include "fontIds.h"
+#include "util/LocaleFormat.h"
 
 namespace {
 constexpr int kStatsButtonHintTopGap = 10;
@@ -336,7 +337,7 @@ void drawPerBookStatsCard(GfxRenderer& renderer, const int x, const int y, const
   }
   drawStatCell(renderer, x + thirdW, thirdW, y + layout.topCardTitleH + rowH, rowH, buf, tr(STR_TIME_LEFT));
 
-  snprintf(buf, sizeof(buf), "%.1f", pagesPerMinute(stats.totalPagesTurned, stats.totalReadingSeconds));
+  LocaleFormat::formatDecimal(pagesPerMinute(stats.totalPagesTurned, stats.totalReadingSeconds), 1, buf, sizeof(buf));
   drawStatCell(renderer, x + thirdW * 2, thirdW, y + layout.topCardTitleH + rowH, rowH, buf,
                tr(STR_STATS_PAGES_PER_MIN));
 
@@ -403,7 +404,7 @@ void drawGlobalStatsCard(GfxRenderer& renderer, const int x, const int y, const 
   BookReadingStats::formatDuration(stats.totalReadingSeconds, buf, sizeof(buf));
   drawStatCell(renderer, x + thirdW, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_TIME_LBL));
 
-  snprintf(buf, sizeof(buf), "%.1f", pagesPerMinute(stats.totalPagesTurned, stats.totalReadingSeconds));
+  LocaleFormat::formatDecimal(pagesPerMinute(stats.totalPagesTurned, stats.totalReadingSeconds), 1, buf, sizeof(buf));
   drawStatCell(renderer, x + thirdW * 2, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_PAGES_PER_MIN));
 
   const uint32_t avgSecs = stats.totalSessions > 0 ? stats.totalReadingSeconds / stats.totalSessions : 0;

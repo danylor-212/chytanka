@@ -38,6 +38,7 @@
 #include "util/Dictionary.h"
 #include "util/DictionaryRegistry.h"
 #include "util/FontFamilyLabel.h"
+#include "util/LocaleFormat.h"
 
 namespace fui = freeink::ui;
 
@@ -991,7 +992,7 @@ void EpubReaderTouchMenuActivity::buildAutoPageTurnPane(UiApp::ScreenType& scree
   buildPaneHeader(screen);
   buildConfirmButton(screen);
   char value[16];
-  std::snprintf(value, sizeof(value), "%us", autoPageTurnIntervalSeconds);
+  LocaleFormat::formatSeconds(autoPageTurnIntervalSeconds, value, sizeof(value));
   ReaderSliderRowProps slider;
   slider.value = value;
   slider.sliderValue =
@@ -2185,7 +2186,7 @@ const char* EpubReaderTouchMenuActivity::rowValue(const RowId row, char* buffer,
       std::snprintf(buffer, bufferSize, "%upt", dictionaryFontPointSize);
       return buffer;
     case RowId::AutoPageTurn:
-      std::snprintf(buffer, bufferSize, "%us", autoPageTurnIntervalSeconds);
+      LocaleFormat::formatSeconds(autoPageTurnIntervalSeconds, buffer, bufferSize);
       return buffer;
     default:
       return nullptr;
