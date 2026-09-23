@@ -33,6 +33,7 @@
 #include "components/icons/morning.h"
 #include "components/icons/night.h"
 #include "components/icons/streak.h"
+#include "components/themes/ButtonHintRenderer.h"
 #include "fontIds.h"
 
 namespace {
@@ -653,19 +654,29 @@ void MinimalTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, cons
   constexpr int x3ButtonPositions[] = {65, 157, 291, 383};
   const int* buttonPositions = screenWidth > 500 ? x3ButtonPositions : x4ButtonPositions;
   const char* labels[] = {btn1, btn2, btn3, btn4};
+  ButtonHintRow row;
+  layoutButtonHintRow(renderer, SMALL_FONT_ID, row, labels, buttonPositions, buttonWidth);
   const int selectedIndex = homeButtonHintSelection;
   homeButtonHintSelection = -1;
 
+  // A box that grew on the previous draw would leave its border behind on a
+  // fast refresh; clear it. Layouts that fit clear nothing extra.
+  static ButtonHintHistory history;
+  ButtonHintSpan staleSpans[ButtonHintRow::kCount];
+  const int staleCount = buttonHintSpansToClear(row, buttonPositions, buttonWidth, history, staleSpans);
+  for (int i = 0; i < staleCount; i++) {
+    renderer.fillRect(staleSpans[i].x, pageHeight - buttonY, staleSpans[i].width, buttonHeight, false);
+  }
+
   for (int i = 0; i < 4; i++) {
     const int x = buttonPositions[i];
-    const bool hasLabel = labels[i] != nullptr && labels[i][0] != '\0';
-    if (hasLabel) {
-      TouchRegistry::getInstance().add(Rect{x, pageHeight - buttonY, buttonWidth, buttonHeight}, i,
-                                       TouchRegistry::Button);
+    if (row.labelled[i]) {
+      const Rect box{row.spans[i].x, pageHeight - buttonY, row.spans[i].width, buttonHeight};
+      TouchRegistry::getInstance().add(box, i, TouchRegistry::Button);
       const Color background = i == selectedIndex ? Color::LightGray : Color::White;
-      renderer.fillRoundedRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, kButtonCornerRadius, background);
-      renderer.drawRoundedRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, 1, kButtonCornerRadius, true, true,
-                               false, false, true);
+      renderer.fillRoundedRect(box.x, box.y, box.width, box.height, kButtonCornerRadius, background);
+      renderer.drawRoundedRect(box.x, box.y, box.width, box.height, 1, kButtonCornerRadius, true, true, false, false,
+                               true);
     } else if (labels[i] != nullptr) {
       // Clear the previous full-sized hint before drawing the inactive marker.
       renderer.fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false);
@@ -680,11 +691,11 @@ void MinimalTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, cons
   const int textY = invertText ? textYOffset : pageHeight - buttonY + textYOffset;
 
   for (int i = 0; i < 4; i++) {
-    if (labels[i] != nullptr && labels[i][0] != '\0') {
-      const int x = buttonPositions[invertText ? 3 - i : i];
-      const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, labels[i]);
-      const int textX = x + (buttonWidth - 1 - textWidth) / 2;
-      renderer.drawText(SMALL_FONT_ID, textX, textY, labels[i]);
+    if (row.labelled[i]) {
+      const ButtonHintSpan& span = row.spans[i];
+      const int x = invertText ? mirroredButtonHintX(buttonPositions, 4, i, span, buttonWidth) : span.x;
+      const int textX = x + (span.width - 1 - row.textWidths[i]) / 2;
+      renderer.drawText(SMALL_FONT_ID, textX, textY, row.text(i));
     }
   }
 
