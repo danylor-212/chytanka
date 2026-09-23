@@ -1310,6 +1310,11 @@ void setup() {
 
   HalSystem::checkPanic();
 
+#ifdef CHYTANKA_DEFAULT_LANGUAGE
+  // Fork-only build-time default UI language: fromJson() only overwrites it
+  // when the settings file carries a "language" key, so a saved choice wins.
+  SETTINGS.language = static_cast<uint8_t>(Language::CHYTANKA_DEFAULT_LANGUAGE);
+#endif
   SETTINGS.loadFromFile();
   Storage.installDateTimeCallback(&SETTINGS.clockUtcOffsetQ);
   APP_STATE.loadFromFile();
