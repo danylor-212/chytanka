@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Встановити Читанку — прошивка для Xteink X4 і X3</title>
+<meta name="description" content="Встановіть «Читанку», українську прошивку для електронних читалок Xteink X4 і X3, прямо з браузера через USB.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&amp;subset=cyrillic,latin&amp;display=swap">
+<!-- ESP Web Tools, pinned. Firmware parts are served from this site (same origin). -->
+<script type="module" src="https://cdn.jsdelivr.net/npm/esp-web-tools@10.4.0/dist/web/install-button.js"></script>
+<style>
+  :root { --ink:#161616; --muted:#5b5b5b; --line:#d9d6cf; --bg:#faf9f6; --card:#fff; --accent:#161616; --on-accent:#faf9f6; --warn:#8a4b00; --warn-bg:#fff4e0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#ecebe7; --muted:#a8a6a0; --line:#3a3936; --bg:#151514; --card:#1d1d1b; --accent:#ecebe7; --on-accent:#151514; --warn:#ffcf8a; --warn-bg:#2a2317; }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.6 Literata, Georgia, "Times New Roman", serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 48px 20px 80px; }
+  a { color:inherit; text-underline-offset: 2px; }
+  code, kbd { font: .88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:var(--card); border:1px solid var(--line); border-radius:4px; padding:1px 5px; }
+  pre { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin: 10px 0 16px; }
+  pre code { border:0; padding:0; background:none; font-size:14px; white-space:pre; }
+
+  header.hero { display:flex; gap:22px; align-items:center; }
+  header.hero picture img { width:88px; height:88px; display:block; }
+  h1 { font-size: 2.4rem; line-height:1.1; margin:0; font-weight:600; }
+  .lede { color:var(--muted); margin:6px 0 0; }
+  .version { display:inline-block; margin-top:8px; font-size:.9rem; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:1px 10px; }
+
+  .install { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:24px; margin: 32px 0 12px; text-align:center; }
+  .install p { margin: 12px 0 0; color:var(--muted); font-size:.95rem; }
+  .btn { font: 600 1.2rem/1 Literata, Georgia, serif; background:var(--accent); color:var(--on-accent); border:0; border-radius:10px; padding:16px 30px; cursor:pointer; }
+  .btn:hover { opacity:.88; }
+  .btn:focus-visible { outline: 3px solid var(--muted); outline-offset: 3px; }
+  .unsupported { display:block; background:var(--warn-bg); color:var(--warn); border-radius:8px; padding:12px 14px; text-align:left; }
+
+  h2 { font-size:1.45rem; margin: 44px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--ink); }
+  h3 { font-size:1.05rem; margin: 22px 0 6px; }
+  ol, ul { padding-left: 1.3em; }
+  li { margin: 4px 0; }
+  .note { border-left:3px solid var(--line); padding: 2px 0 2px 14px; color:var(--muted); }
+  .warn { background:var(--warn-bg); color:var(--warn); border-radius:8px; padding:12px 16px; }
+  .warn a, .warn strong { color:inherit; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .card h3 { margin-top:0; }
+  .card p { margin: 0; }
+  .table-wrap { overflow-x:auto; }
+  table { border-collapse: collapse; width:100%; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); }
+  th { font-weight:600; }
+  tr:last-child td { border-bottom:0; }
+  .en { font-size:.95rem; }
+  footer { margin-top:48px; color:var(--muted); font-size:.92rem; border-top:1px solid var(--line); padding-top:18px; }
+  footer nav { display:flex; flex-wrap:wrap; gap:6px 18px; margin-bottom:10px; }
+  @media (max-width: 520px) {
+    main { padding-top: 28px; }
+    header.hero { gap:14px; }
+    header.hero picture img { width:64px; height:64px; }
+    h1 { font-size: 1.9rem; }
+    .install { padding:18px 14px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header class="hero">
+  <picture>
+    <source srcset="assets/logo-dark.png" media="(prefers-color-scheme: dark)">
+    <img src="assets/logo.png" width="88" height="88" alt="Логотип Читанки: тризуб на обкладинці книжки">
+  </picture>
+  <div>
+    <h1>Читанка</h1>
+    <p class="lede">Українська прошивка для електронних читалок Xteink X4 і X3 — на основі CrossInk і CrossPoint.</p>
+    <span class="version">версія 1.6.0.1</span>
+  </div>
+</header>
+
+<section class="install" aria-labelledby="install-title">
+  <h2 id="install-title" hidden>Встановлення</h2>
+  <esp-web-install-button manifest="manifest.json">
+    <button slot="activate" class="btn" type="button">Встановити Читанку</button>
+    <span slot="unsupported" class="unsupported"><strong>Цей браузер не вміє працювати з USB-портами (Web Serial).</strong> Відкрийте сторінку в Chrome, Edge або Opera на комп'ютері. Телефони й планшети не підходять.</span>
+    <span slot="not-allowed" class="unsupported">Встановлення працює лише через HTTPS. Відкрийте <a href="https://danylor-212.github.io/chytanka/">danylor-212.github.io/chytanka</a>.</span>
+  </esp-web-install-button>
+  <p>Налаштування, статистика, Wi‑Fi і книжки на SD-картці <strong>не стираються</strong>. У вікні «Erase device» залиште галочку <strong>знятою</strong>.</p>
+</section>
+
+<p class="note">Читанка — це CrossInk з українським інтерфейсом, правильними переносами, цитатами української літератури на заставці та вбудованим каталогом безкоштовних книжок. Детальніше — у <a href="https://github.com/danylor-212/chytanka#readme">репозиторії</a> і <a href="https://github.com/danylor-212/chytanka/releases/latest">примітках до релізу</a>.</p>
+
+<h2>Що потрібно</h2>
+<div class="grid">
+  <div class="card">
+    <h3>Пристрій</h3>
+    <p><strong>Xteink X4</strong> або <strong>Xteink X3</strong> (одна прошивка для обох). X4 Pro, X4 Classic та інші читалки <strong>не підтримуються</strong>.</p>
+  </div>
+  <div class="card">
+    <h3>Браузер</h3>
+    <p>Chrome, Edge або Opera на комп'ютері (Windows, macOS, Linux) — з підтримкою Web Serial. Safari і браузери на телефонах не підійдуть.</p>
+  </div>
+  <div class="card">
+    <h3>Кабель</h3>
+    <p>USB-C кабель <strong>з передаванням даних</strong>, не лише для заряджання. Краще підключати напряму в комп'ютер, без хаба.</p>
+  </div>
+  <div class="card">
+    <h3>Linux</h3>
+    <p>Порт <code>/dev/ttyACM0</code> зазвичай належить групі <code>dialout</code> (в Arch — <code>uucp</code>): <code>sudo usermod -aG dialout $USER</code>, потім вийдіть із сеансу й зайдіть знову.</p>
+  </div>
+</div>
+
+<h2>Спершу — бекап (рекомендовано)</h2>
+<p>Браузерний інсталятор не вміє робити копію пам'яті пристрою. Якщо хочете мати змогу повернути все як було, зробіть повний бекап через <a href="https://docs.espressif.com/projects/esptool/en/latest/esp32c3/installation.html">esptool</a> (≈2 хвилини):</p>
+<pre><code>pipx install esptool
+esptool --chip esp32c3 --port /dev/ttyACM0 --baud 921600 read-flash 0 ALL x4-backup.bin</code></pre>
+<p class="note">У Windows порт називається <code>COM3</code>, <code>COM4</code>… (див. Диспетчер пристроїв), у macOS — <code>/dev/cu.usbmodem…</code>. У бекапі є збережені паролі Wi‑Fi — не викладайте його в інтернет.</p>
+
+<h2>Як встановити</h2>
+<ol>
+  <li><strong>Увімкніть читалку</strong> й залиште її на головному екрані. Вона має бути ввімкнена й не спати, поки йде прошивка.</li>
+  <li><strong>Підключіть</strong> її USB-кабелем до комп'ютера.</li>
+  <li>Натисніть <strong>«Встановити Читанку»</strong> вище.</li>
+  <li>У списку портів виберіть <strong>«USB JTAG/serial debug unit»</strong> (у Windows — «USB Serial Device (COMx)»; ідентифікатор виробника <code>303a</code>) і натисніть «Підключитися» / «Connect».</li>
+  <li>Натисніть <strong>«Install Читанка…»</strong>. У вікні «Erase device» <strong>не ставте галочку</strong> — тоді налаштування й дані збережуться — і натисніть «Next», потім «Install».</li>
+  <li><strong>Зачекайте</strong> 1–3 хвилини, поки індикатор дійде до кінця. Не від'єднуйте кабель і не закривайте вкладку.</li>
+  <li><strong>Перезапуск.</strong> Якщо читалка не перезапустилася сама, від'єднайте й знову під'єднайте кабель, коротко натисніть кнопку <strong>Reset</strong> і одразу затисніть <strong>кнопку живлення</strong> на 3–5 секунд. З'явиться екран Читанки з написом «версія 1.6.0.1-ua».</li>
+</ol>
+
+<h2>Якщо порт не з'являється або підключення не вдається</h2>
+<ul>
+  <li><strong>Розбудіть пристрій.</strong> Він має бути на головному екрані, а не в режимі сну. Спробуйте ще раз після того, як екран оновився.</li>
+  <li><strong>Інший кабель або порт.</strong> Найчастіша причина — кабель лише для заряджання. Спробуйте інший USB-порт, без хаба.</li>
+  <li><strong>Закрийте інші програми,</strong> які можуть тримати порт: інші вкладки з прошивальниками (Inky, CrossPoint), Arduino/PlatformIO-монітор, <code>screen</code>, <code>minicom</code>. Порт може відкрити тільки одна програма.</li>
+  <li><strong>Linux:</strong> перевірте групу <code>dialout</code> (див. вище) і <code>dmesg | tail</code> — там має з'явитися <code>ttyACM0</code>.</li>
+  <li><strong>Завислий пристрій:</strong> натисніть Reset, потім затисніть кнопку живлення, щоб він завантажився, і спробуйте знову.</li>
+  <li>Повідомлення інсталятора «hold the BOOT button» до Xteink не стосується: окремої кнопки BOOT немає, а прошивка йде через вбудований USB-порт працюючого пристрою.</li>
+</ul>
+<div class="warn">
+  <p><strong>Пристрій так і не з'являється у списку?</strong> Можливо, у нього заблоковане прошивання через USB. Таке буває з читалками, купленими не на xteink.com (наприклад, на AliExpress). Для них розробники CrossPoint зробили <a href="https://crosspointreader.com/unlock">Xteink Unlocker</a>. За їхніми словами, офіційно він підтримує <strong>лише CrossPoint і CrossInk</strong>, а будь-яка інша прошивка на заблокованому пристрої може його <strong>остаточно зіпсувати</strong>. Тому Читанку через Unlocker напряму <strong>не ставте</strong>. Спершу встановіть через нього CrossInk, а потім оновіться до Читанки з SD-картки (див. нижче).</p>
+</div>
+
+<h2>Після встановлення</h2>
+<ul>
+  <li><strong>Мова.</strong> На новому пристрої інтерфейс одразу український. Якщо раніше стояв CrossInk або CrossPoint, пристрій пам'ятає збережену мову: <em>Settings → System → Device → Language → Українська</em>.</li>
+  <li><strong>Згладжування.</strong> Читанка радить вимкнути його: текст стає чіткішим, а сторінки гортаються за одне оновлення екрана. Якщо налаштування лишилися від попередньої прошивки, вимкніть вручну: <em>Налаштування → Читання → Параметри шрифту → Згладжування тексту</em>.</li>
+  <li><strong>Книжки.</strong> Каталог «Читанка — Книжки» вже є в списку OPDS: 65 книжок української класики, завантаження по Wi‑Fi.</li>
+  <li>Обкладинки один раз перегенеруються, а книжки під час першого відкриття можуть заново розбитися на сторінки — це нормально.</li>
+</ul>
+
+<h2>Оновлення</h2>
+<p>Далі Читанка оновлюється сама, <strong>по повітрю</strong>: <em>Налаштування → Система → Перевірити оновлення</em>. Нові версії беруться тільки з <a href="https://github.com/danylor-212/chytanka/releases">релізів Читанки</a>, тож стоковий CrossInk її не замінить.</p>
+<p>Без комп'ютера: завантажте <code>firmware-x3-x4.bin</code> з <a href="https://github.com/danylor-212/chytanka/releases/latest">останнього релізу</a>, покладіть на SD-картку й виберіть <em>Налаштування → Система → Оновлення прошивки з SD-картки</em>. Цей пункт є і в CrossInk (<em>Settings → System → SD Card Firmware Update</em>).</p>
+
+<h2>Відкат</h2>
+<ul>
+  <li><strong>З бекапу:</strong> <code>esptool --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write-flash 0 x4-backup.bin</code></li>
+  <li><strong>На стоковий CrossInk:</strong> прошийте його з <a href="https://inky.crossink.dev/#flash-tools">inky.crossink.dev</a>.</li>
+</ul>
+
+<h2>Вручну: esptool-js або термінал</h2>
+<p>Якщо кнопка вище не спрацювала, те саме можна зробити в <a href="https://espressif.github.io/esptool-js/">esptool-js</a> (теж у браузері) або в <code>esptool</code>. Завантажте чотири файли (посилання в таблиці або з <a href="https://github.com/danylor-212/chytanka/releases/latest">релізу</a>) і вкажіть адреси:</p>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Адреса</th><th>Файл</th><th>Що це</th></tr></thead>
+  <tbody>
+    <tr><td><code>0x0</code></td><td><a href="firmware/latest/bootloader.bin">bootloader.bin</a></td><td>завантажувач</td></tr>
+    <tr><td><code>0x8000</code></td><td><a href="firmware/latest/partitions.bin">partitions.bin</a></td><td>таблиця розділів</td></tr>
+    <tr><td><code>0xe000</code></td><td><a href="firmware/latest/boot_app0.bin">boot_app0.bin</a></td><td>вибір розділу, з якого завантажуватися</td></tr>
+    <tr><td><code>0x10000</code></td><td><a href="firmware/latest/firmware-x3-x4.bin">firmware-x3-x4.bin</a></td><td>сама Читанка</td></tr>
+  </tbody>
+</table>
+</div>
+<p>У esptool-js: <em>Baudrate</em> 921600 → <em>Connect</em> → додайте чотири рядки «Flash Address + файл» → <em>Program</em>. Кнопку <em>Erase Flash</em> <strong>не натискайте</strong>: вона зітре налаштування. Контрольні суми — у <a href="firmware/latest/SHA256SUMS">SHA256SUMS</a>.</p>
+<pre><code>esptool --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write-flash \
+  0x0 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 firmware-x3-x4.bin</code></pre>
+
+<h2 lang="en">In English</h2>
+<div class="en" lang="en">
+  <p><strong>Chytanka</strong> is a Ukrainian edition of CrossInk firmware for the <strong>Xteink X4 and X3</strong>. Use desktop Chrome, Edge or Opera and a USB data cable. Keep the reader awake on its home screen, click <em>«Встановити Читанку»</em>, pick “USB JTAG/serial debug unit” (VID <code>303a</code>) and leave <em>Erase device</em> <strong>unchecked</strong> so your settings survive. Then unplug and replug, press Reset and hold Power. The installer writes the bootloader (<code>0x0</code>), partition table (<code>0x8000</code>), <code>boot_app0</code> (<code>0xe000</code>) and the app (<code>0x10000</code>) and leaves NVS and data partitions alone. It can't make a backup, so run <code>esptool read-flash 0 ALL backup.bin</code> first if you want one. If the port never shows up, the device may be USB-locked. The CrossPoint <a href="https://crosspointreader.com/unlock">Unlocker</a> officially supports only CrossPoint and CrossInk, so install CrossInk with it first and then update to Chytanka from the SD card. Later updates arrive over the air from <a href="https://github.com/danylor-212/chytanka/releases">Chytanka releases</a>.</p>
+</div>
+
+<footer>
+  <nav>
+    <a href="https://github.com/danylor-212/chytanka">Репозиторій</a>
+    <a href="https://github.com/danylor-212/chytanka/releases">Релізи</a>
+    <a href="https://danylor-212.github.io/chytanka-books/">«Читанка — Книжки»</a>
+    <a href="https://github.com/danylor-212/chytanka/issues">Повідомити про проблему</a>
+  </nav>
+  <p>Читанка побудована на <a href="https://github.com/uxjulia/CrossInk">CrossInk</a> і <a href="https://github.com/crosspoint-reader/crosspoint-reader">CrossPoint Reader</a>. Ліцензія MIT. Інсталятор — <a href="https://esphome.github.io/esp-web-tools/">ESP Web Tools</a>. Читанка не пов'язана з Xteink. Ви прошиваєте пристрій на власний ризик.</p>
+</footer>
+
+</main>
+</body>
+</html>
