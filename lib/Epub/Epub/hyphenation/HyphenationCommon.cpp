@@ -35,15 +35,29 @@ uint32_t toLowerLatinImpl(const uint32_t cp) {
   }
 }
 
-// Convert Cyrillic uppercase letters to lowercase
-// Cyrillic uppercase range 0x0410-0x042F maps to lowercase by adding 0x20
-// Special case: Cyrillic capital IO (0x0401) maps to lowercase io (0x0451)
+// Convert Cyrillic uppercase letters to lowercase across U+0400..U+052F.
+//   U+0400..U+040F (Ѐ Ё Ђ Ѓ Є Ѕ І Ї Ј Љ Њ Ћ Ќ Ѝ Ў Џ) -> +0x50
+//   U+0410..U+042F (А..Я)                            -> +0x20
+//   U+0460..U+0481, U+048A..U+04BF, U+04D0..U+052F: case pairs, even = upper (Ѣ, Ґ, Ә, ...)
+//   U+04C1..U+04CE: case pairs, odd = upper (Ӂ, ...)
+//   U+04C0 (Ӏ palochka) -> U+04CF
 uint32_t toLowerCyrillicImpl(const uint32_t cp) {
+  if (cp >= 0x0400 && cp <= 0x040F) {
+    return cp + 0x50;
+  }
   if (cp >= 0x0410 && cp <= 0x042F) {
     return cp + 0x20;
   }
-  if (cp == 0x0401) {
-    return 0x0451;
+  if (cp == 0x04C0) {
+    return 0x04CF;
+  }
+  const bool evenUpperBlock =
+      (cp >= 0x0460 && cp <= 0x0481) || (cp >= 0x048A && cp <= 0x04BF) || (cp >= 0x04D0 && cp <= 0x052F);
+  if (evenUpperBlock && (cp % 2 == 0)) {
+    return cp + 1;
+  }
+  if (cp >= 0x04C1 && cp <= 0x04CE && (cp % 2 == 1)) {
+    return cp + 1;
   }
   return cp;
 }
