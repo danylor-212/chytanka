@@ -160,6 +160,60 @@ pre-Chytanka stock build) before taking the OTA update:
   call this out so upgraders don't expect to also see stock CrossInk release
   notes/updates.
 
+## Embedded quote cards (default sleep screen)
+
+Under `CHYTANKA`, the **Dark** and **Light** sleep screen modes (CrossInk's
+"default" screen, `SleepActivity::renderDefaultSleepScreen()`) show one of 50
+quote cards compiled into the firmware instead of the logo block. Every other
+mode (Custom / Cover / Overlay / stats / Quick Resume ...) is unchanged; the
+modes that fall back to the default screen when they have nothing to show
+(Custom with no images, Cover outside a book, ...) now fall back to a card.
+The boot screen keeps the logo. The card is drawn as designed in both Dark and
+Light (not inverted); the **cover filter** setting applies exactly as for an
+SD sleep image (black & white / inverted drop the gray passes).
+
+- **Source of truth:** the brand repo — `brand/quotes/embedded_ids.json` (the
+  50 ids, written and validated by `brand/quotes/select_embedded.py`: max 3
+  per author, at least 20 authors, all reading-themed quotes and Shevchenko
+  id 102 included) and the rendered cards `brand/cards/public/q###.bmp`
+  (`make_cards.py`, 480x800, gray levels 0/85/170/255 only).
+- **Regenerate** after changing the selection or re-rendering cards, then
+  commit both generated files:
+
+  ```
+  python3 scripts/chytanka/gen_embedded_quotes.py --brand <path>/chytanka/brand
+  # or --render to re-render through make_cards.render() (needs cairosvg)
+  ```
+
+  It writes `src/images/ChytankaQuoteCards.{h,cpp}` (never edit them by hand;
+  the tables sit between `clang-format off/on`, so the formatter leaves them
+  alone) and refuses cards with non-native gray levels or a wrong size. Up to
+  64 cards fit the picker's mask.
+- **Format:** per card, 2bpp rows (0 black .. 3 white, leftmost pixel in the
+  high bits, as `Bitmap::readNextRow()` hands rows to `GfxRenderer`), one raw
+  deflate stream compressed with a 512-byte window, plus a CRC-32 of the
+  decoded rows. About 6.2 KB per card, ~311 KB of flash for 50.
+- **Rendering** (`ChytankaQuoteSleep.cpp`): no memory-file abstraction exists
+  for `Bitmap` (it reads an SD-backed `HalFile`), so the card is inflated row
+  by row with uzlib (already linked for fonts) through a 512-byte ring and
+  drawn with the same per-pixel rule as `GfxRenderer::drawBitmap()`, once per
+  pass (B/W, then the LSB and MSB gray planes), followed by the same display
+  sequence as `renderBitmapSleepScreen()`. Heap: one ~1.9 KB decoder object
+  for the duration of the render; the 96 KB decoded card never exists in RAM.
+  Decode or CRC failure (or OOM) is detected in the B/W pass, before anything
+  reaches the panel, and falls back to the brand block.
+- **No repeats:** a shuffle bag persisted in `/.crosspoint/chytanka_quotes.bin`
+  (16 bytes, fork-owned, separate from `APP_STATE`'s SD sleep-image history):
+  each cycle shows every card once, and a new cycle never starts with the
+  previous card. A different card count or a corrupt file restarts the bag.
+- **Tests:** `test/chytanka_quote_cards` decodes all cards and checks their
+  CRCs (computed by the generator from the source BMPs), rejects corrupt and
+  truncated streams, and checks the picker. With `CHYTANKA_BRAND_DIR=<brand>`
+  it also compares every card with its BMP pixel by pixel;
+  `CHYTANKA_QUOTE_DUMP_DIR=<dir>` writes the decoded cards as PGM files.
+- On an X3 (528x792 portrait) the 480x800 card is centred unscaled: 24 px
+  white side margins, 4 blank rows clipped top and bottom.
+
 ## Rebase checklist
 
 After every rebase onto a new upstream CrossInk tag:
@@ -194,6 +248,12 @@ After every rebase onto a new upstream CrossInk tag:
    120`, and `SleepActivity.cpp`'s `CROSSINK_SHOW_SLEEP_BUILD_INFO` block sits
    right under it) — it's fine (and used) in `[env:debug]`, just never copy it
    into the Chytanka release env.
+7. Check `SleepActivity::renderBitmapSleepScreen()` against the display
+   sequence copied into `chytanka::renderQuoteCardSleepScreen()`
+   (`ChytankaQuoteSleep.cpp`: cover filter, Absolute/Direct grayscale base,
+   LSB/MSB planes) and the per-pixel rule in `GfxRenderer::drawBitmap()`
+   against `drawCardPass()`. If upstream changed either, mirror it so the
+   embedded cards keep looking exactly like an SD sleep BMP.
 
 ## Related
 
@@ -205,5 +265,8 @@ After every rebase onto a new upstream CrossInk tag:
 - `src/activities/boot_sleep/BootActivity.cpp`,
   `src/activities/boot_sleep/SleepActivity.cpp` — call sites / frozen `#else`
   fallbacks.
+- `src/activities/boot_sleep/ChytankaQuote{Sleep,Decoder}.{h,cpp}`,
+  `src/images/ChytankaQuoteCards.{h,cpp}` (generated),
+  `scripts/chytanka/gen_embedded_quotes.py` — embedded quote cards.
 - `src/CrossPointSettings.cpp` (`getDefaultDeviceName()`) — Chytanka default
   device name and its length caveats, traced above.
