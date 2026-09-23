@@ -231,14 +231,29 @@ void drawCenteredLabel(const GfxRenderer& renderer, const int fontId, const int 
                     bold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
 }
 
+constexpr int kStatCellPadding = 4;
+
 void drawStatCell(const GfxRenderer& renderer, const int x, const int w, const int y, const int h, const char* value,
                   const char* label) {
   const int valueLineH = renderer.getLineHeight(UI_12_FONT_ID);
   const int labelLineH = renderer.getLineHeight(SMALL_FONT_ID);
   const int totalTextH = valueLineH + 4 + labelLineH;
   const int textY = y + (h - totalTextH) / 2;
-  drawCenteredLabel(renderer, UI_12_FONT_ID, x, w, textY, value, true);
-  drawCenteredLabel(renderer, SMALL_FONT_ID, x, w, textY + valueLineH + 4, label);
+  const int maxTextW = w - kStatCellPadding * 2;
+  const std::string visibleValue = renderer.truncatedText(UI_12_FONT_ID, value, maxTextW, EpdFontFamily::BOLD);
+  const std::string visibleLabel = renderer.truncatedText(SMALL_FONT_ID, label, maxTextW);
+  drawCenteredLabel(renderer, UI_12_FONT_ID, x, w, textY, visibleValue.c_str(), true);
+  drawCenteredLabel(renderer, SMALL_FONT_ID, x, w, textY + valueLineH + 4, visibleLabel.c_str());
+}
+
+// Drops the minute part ("123h 55 min" -> "123h") when the value would not
+// fit a stat cell of width w.
+void formatCellDuration(const GfxRenderer& renderer, const uint32_t seconds, const int w, char* buf, const size_t len) {
+  formatDurationToFit(
+      LocaleFormat::durationPatterns(LocaleFormat::DurationStyle::Long), seconds, DurationRounding::Floor,
+      w - kStatCellPadding * 2,
+      [&renderer](const char* text) { return renderer.getTextWidth(UI_12_FONT_ID, text, EpdFontFamily::BOLD); }, buf,
+      len);
 }
 
 void drawSectionCard(const GfxRenderer& renderer, const int x, const int y, const int w, const int h, const char* title,
@@ -310,7 +325,7 @@ void drawPerBookStatsCard(GfxRenderer& renderer, const int x, const int y, const
   snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(stats.sessionCount));
   drawStatCell(renderer, x, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_SESSIONS_LBL));
 
-  BookReadingStats::formatDuration(stats.totalReadingSeconds, buf, sizeof(buf));
+  formatCellDuration(renderer, stats.totalReadingSeconds, thirdW, buf, sizeof(buf));
   drawStatCell(renderer, x + thirdW, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_TIME_LBL));
 
   if (progressPercent >= 0.0f) {
@@ -321,7 +336,7 @@ void drawPerBookStatsCard(GfxRenderer& renderer, const int x, const int y, const
   drawStatCell(renderer, x + thirdW * 2, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_PROGRESS_LBL));
 
   const uint32_t avgSecs = stats.sessionCount > 0 ? stats.totalReadingSeconds / stats.sessionCount : 0;
-  BookReadingStats::formatDuration(avgSecs, buf, sizeof(buf));
+  formatCellDuration(renderer, avgSecs, thirdW, buf, sizeof(buf));
   drawStatCell(renderer, x, thirdW, y + layout.topCardTitleH + rowH, rowH, buf, tr(STR_STATS_AVG_SESSION_LBL));
 
   uint32_t fallbackEstimateSeconds = 0;
@@ -403,14 +418,14 @@ void drawGlobalStatsCard(GfxRenderer& renderer, const int x, const int y, const 
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.totalSessions));
   drawStatCell(renderer, x, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_SESSIONS_LBL));
 
-  BookReadingStats::formatDuration(stats.totalReadingSeconds, buf, sizeof(buf));
+  formatCellDuration(renderer, stats.totalReadingSeconds, thirdW, buf, sizeof(buf));
   drawStatCell(renderer, x + thirdW, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_TIME_LBL));
 
   LocaleFormat::formatDecimal(pagesPerMinute(stats.totalPagesTurned, stats.totalReadingSeconds), 1, buf, sizeof(buf));
   drawStatCell(renderer, x + thirdW * 2, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_PAGES_PER_MIN));
 
   const uint32_t avgSecs = stats.totalSessions > 0 ? stats.totalReadingSeconds / stats.totalSessions : 0;
-  BookReadingStats::formatDuration(avgSecs, buf, sizeof(buf));
+  formatCellDuration(renderer, avgSecs, thirdW, buf, sizeof(buf));
   if (showRtcStats) {
     drawStatCell(renderer, x, thirdW, y + layout.topCardTitleH + rowH, rowH, buf, tr(STR_STATS_AVG_SESSION_LBL));
   } else {
