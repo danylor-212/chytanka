@@ -306,7 +306,8 @@ After every rebase onto a new upstream CrossInk tag:
    centre, then «Читанка» in UI_12 bold, credit and status in SMALL — see the
    layout constants in `chytanka::drawBrandBlock()`). Under `CHYTANKA`,
    `SleepActivity::renderDefaultSleepScreen()` moves the line to `H - 30`
-   (the boot screen's version slot). If upstream moves or restyles that
+   (CrossInk's boot-screen version slot; the Chytanka boot and wake screens
+   show the version inside the brand block instead, «версія 1.6.0.0-ua»). If upstream moves or restyles that
    block, keep the `#ifdef CHYTANKA` branch in step.
 7. Check `SleepActivity::renderBitmapSleepScreen()` against the display
    sequence copied into `chytanka::renderQuoteCardSleepScreen()`

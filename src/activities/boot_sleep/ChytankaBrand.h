@@ -7,8 +7,8 @@ class GfxRenderer;
 
 namespace chytanka {
 
-// Draws the centred Chytanka logo, the brand name, a small "based on
-// CrossInk" credit line and `status` below them. Replaces the CrossInk logo
+// Draws the centred Chytanka logo, the brand name, the firmware version, a
+// small "based on CrossInk" credit line and `status` below them. Replaces the CrossInk logo
 // block; the caller clears the screen and refreshes the display.
 void drawBrandBlock(const GfxRenderer& renderer, int pageWidth, int pageHeight, const char* status);
 

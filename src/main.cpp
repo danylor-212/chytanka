@@ -1488,7 +1488,6 @@ void setup() {
         const auto pageHeight = renderer.getScreenHeight();
         renderer.clearScreen();
         chytanka::drawBrandBlock(renderer, pageWidth, pageHeight, tr(STR_BOOTING));
-        renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, CROSSINK_VERSION);
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);
         LOG_INF("BOOT", "Wake: Chytanka boot screen painted in %lu ms", millis() - wakeLogoStart);
         // The HALF refresh has established a clean panel baseline (same as the
