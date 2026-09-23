@@ -327,7 +327,11 @@ class GfxRenderer {
     return sharp ? bmpVal <= 1 : bmpVal < 3;
   }
   // Sharp B/W glyph threshold (Chytanka only; compiled out of stock builds).
-  // Readers enable it while composing page text that gets no grayscale pass.
+  // Readers enable it only when text anti-aliasing is off. With anti-aliasing
+  // on, text keeps the full black base even on a page that gets no grayscale
+  // pass (white-on-black text, a queued intermediate page), so it looks the
+  // same weight as the anti-aliased pages around it.
+  static constexpr bool sharpBwTextForReader(const bool textAntiAliasing) { return !textAntiAliasing; }
 #ifdef CHYTANKA
   void setSharpBwText(const bool enabled) const { sharpBwText = enabled; }
   bool sharpBwTextEnabled() const { return sharpBwText; }

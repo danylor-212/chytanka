@@ -63,6 +63,42 @@ TEST(SharpBwText, ThresholdMapping) {
   EXPECT_FALSE(GfxRenderer::isBwGlyphInk(3, true));
 }
 
+TEST(SharpBwText, ReaderUsesSharpThresholdOnlyWithAntiAliasingOff) {
+  // Anti-aliasing off: every page is B/W only, so text gets the sharp threshold.
+  EXPECT_TRUE(GfxRenderer::sharpBwTextForReader(false));
+  // Anti-aliasing on: the full black base stays, including the pages that get
+  // no grayscale pass (white text on a dark background, queued intermediate
+  // pages), so they keep the same stroke weight as anti-aliased pages.
+  EXPECT_FALSE(GfxRenderer::sharpBwTextForReader(true));
+}
+
+TEST(SharpBwText, DarkBackgroundWithAntiAliasingKeepsFullBase) {
+  // White-on-black text (dark reader background) with anti-aliasing on gets
+  // no grayscale pass but must still draw every non-white glyph pixel.
+  FourLevelFont fixture;
+  HalDisplay display;
+  GfxRenderer renderer(display);
+  renderer.begin();
+  renderer.insertFont(1, EpdFontFamily(&fixture.font));
+  renderer.setRenderMode(GfxRenderer::BW);
+
+  const auto drawWhiteOnBlack = [&](const bool sharp) {
+    renderer.clearScreen(0x00);
+    GfxRenderer::SharpBwTextScope scope(renderer, sharp);
+    renderer.drawText(1, 20, 20, "A", /*black=*/false);
+    std::set<std::pair<int, int>> lit;
+    for (int y = 0; y < 80; ++y)
+      for (int x = 0; x < 80; ++x)
+        if (!renderer.isPixelBlack(x, y)) lit.insert({x, y});
+    return lit;
+  };
+
+  const auto fullBase = drawWhiteOnBlack(false);
+  const auto withAntiAliasing = drawWhiteOnBlack(GfxRenderer::sharpBwTextForReader(true));
+  EXPECT_EQ(withAntiAliasing, fullBase);
+  EXPECT_EQ(inkedColumns(fullBase).size(), 3u);  // black, dark and light gray pixels
+}
+
 TEST(SharpBwText, ScopeRestoresPreviousState) {
   HalDisplay display;
   GfxRenderer renderer(display);

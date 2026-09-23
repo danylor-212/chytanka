@@ -830,7 +830,7 @@ void TxtReaderActivity::renderPage() {
   // threshold; the anti-aliased path needs the full black base.
   {
 #ifdef CHYTANKA
-    GfxRenderer::SharpBwTextScope sharpText(renderer, !SETTINGS.textAntiAliasing);
+    GfxRenderer::SharpBwTextScope sharpText(renderer, GfxRenderer::sharpBwTextForReader(SETTINGS.textAntiAliasing));
 #endif
     renderLines();
   }

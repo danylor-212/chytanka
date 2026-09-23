@@ -6942,10 +6942,13 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
   };
 
 #ifdef CHYTANKA
-  // Text that no grayscale pass will refine is drawn with the sharp B/W glyph
-  // threshold. The anti-aliased path keeps the full black base, because the
-  // grayscale overlay can only lighten black pixels.
-  const bool sharpBwText = !needsTextGrayscale;
+  // With anti-aliasing off, text is drawn with the sharp B/W glyph threshold.
+  // With it on, the full black base stays even when this page gets no
+  // grayscale pass (white-on-black text, a queued intermediate page): the
+  // grayscale overlay can only lighten black pixels, and B/W-only pages must
+  // not turn thinner than their anti-aliased neighbours. SETTINGS holds the
+  // book's effective value (per-book reader settings are applied on open).
+  const bool sharpBwText = GfxRenderer::sharpBwTextForReader(SETTINGS.textAntiAliasing);
 #endif
 
   const auto composePageBuffer = [&]() {
