@@ -30,6 +30,7 @@
 #include "AppVersion.h"
 #ifdef CHYTANKA
 #include "ChytankaBrand.h"
+#include "ChytankaQuoteSleep.h"
 #endif
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -643,6 +644,11 @@ void SleepActivity::renderCustomSleepScreen() const {
 // sequence, used once for the sleep image. It never runs the multi-flash GC
 // waveform (0xF7) that FULL_REFRESH selects (#2471's blinking complaint).
 void SleepActivity::renderDefaultSleepScreen() const {
+#ifdef CHYTANKA
+  // Chytanka's default sleep screen is an embedded quote card; the brand block
+  // below stays as the fallback when the card cannot be drawn.
+  if (chytanka::renderQuoteCardSleepScreen(renderer, TURN_OFF_SCREEN_AFTER_SLEEP_REFRESH)) return;
+#endif
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
