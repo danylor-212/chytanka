@@ -12,7 +12,9 @@
 #include <cstring>
 
 #include "AppVersion.h"
+#ifdef CHYTANKA
 #include "ChytankaBrand.h"
+#endif
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "ImageFolderIndex.h"

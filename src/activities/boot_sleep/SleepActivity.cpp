@@ -28,7 +28,9 @@
 #include "../reader/XtcReaderActivity.h"
 #include "AppCapabilities.h"
 #include "AppVersion.h"
+#ifdef CHYTANKA
 #include "ChytankaBrand.h"
+#endif
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "ImageFolderIndex.h"
