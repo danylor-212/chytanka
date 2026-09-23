@@ -248,8 +248,20 @@ const char* CrossPointSettings::getDefaultDeviceName() {
 #endif
   if (BoardConfig::isSticky()) return "Sticky";
   if (BoardConfig::isX4Pro()) return "CrossInk X4 Pro";
+#ifdef CHYTANKA
+  // Fork-only default device name (X3/X4 only — the only devices the `ua`
+  // env builds for). getEffectiveDeviceName() only falls back to this when
+  // no valid deviceName is saved, so a user-set name always wins. Reuses
+  // CrossInk's own X3/X4 runtime detection below rather than adding a new
+  // one. Exactly CrossPointSettings::MAX_DEVICE_NAME_LENGTH (20) bytes, so
+  // it fits the fixed deviceName buffer verbatim — see
+  // docs/chytanka/RELEASING.md for details.
+  if (gpio.deviceIsX3()) return "Chytanka X3 CrossInk";
+  if (gpio.deviceIsX4()) return "Chytanka X4 CrossInk";
+#else
   if (gpio.deviceIsX3()) return "CrossInk X3";
   if (gpio.deviceIsX4()) return "CrossInk X4";
+#endif
   return "CrossInk";
 }
 

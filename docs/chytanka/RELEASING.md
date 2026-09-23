@@ -80,6 +80,43 @@ with upstream CrossInk.
   for `CROSSINK_FIRMWARE_DEVICE_TYPE="x3-x4"` (exact name, or
   `firmware-x3-x4-<anything>.bin`).
 
+## Default device name (`CHYTANKA`)
+
+`CrossPointSettings::getDefaultDeviceName()` (`src/CrossPointSettings.cpp`,
+~line 245) returns `"Chytanka X3 CrossInk"` / `"...X4"` under `CHYTANKA`
+for a fresh device (no saved `deviceName`); a saved name always wins
+(`getEffectiveDeviceName()`). Both strings are exactly 20 bytes, equal to
+`CrossPointSettings::MAX_DEVICE_NAME_LENGTH` (20, from the fixed
+`deviceName[21]` settings buffer), so they fit verbatim with no truncation
+anywhere:
+
+- **Nearby book transfer / stats sync / position sync**
+  (`NearbyBookTransferActivity.cpp`, `NearbyStatsSyncActivity.cpp`,
+  `NearbyBookPositionSyncActivity.cpp`): all bound the outgoing copy with
+  `std::min(strlen(name), MAX_DEVICE_NAME_LENGTH)` before `memcpy`. At exactly
+  20 bytes the default is copied in full — no truncation at the peer.
+- **KOReader sync** (`KOReaderSyncActivity.cpp`): `progress.device` is a
+  `std::string` sent as a JSON field — no truncation, full name round-trips.
+  Local display of a peer's device name renders through `snprintf` into a
+  64-byte stack buffer, comfortably fits.
+- **Settings → device name editor** (`SettingsActivity.cpp`
+  `openStringEditor()`): the editor's `maxLength` is
+  `MAX_DEVICE_NAME_LENGTH` (20), and the *initial text* — the unedited
+  default — is now exactly 20 bytes, so it no longer arrives over the
+  editor's own limit. Confirming without editing saves cleanly.
+- **Web UI, hostname/mDNS, AP SSID, User-Agent, BLE**: none of these read
+  `getEffectiveDeviceName()`/`getDefaultDeviceName()` at all. Wi-Fi
+  hostname/mDNS/AP name are the fixed strings `"crosspoint"` /
+  `"CrossPoint-Reader-<mac>"` (`CrossPointWebServerActivity.cpp`,
+  `CalibreConnectActivity.cpp`, `WifiSelectionActivity.cpp`); OTA/download
+  User-Agent uses `CROSSINK_VERSION`, not the device name; there is no
+  Bluetooth/BLE code in this repo.
+
+If the default ever grows again, re-check the same consumers: any name over
+`MAX_DEVICE_NAME_LENGTH` (20) still degrades safely at the Nearby/transfer
+paths (silent truncation via `std::min`, not a memory-safety issue) but will
+reintroduce the Settings-editor pre-fill rough edge described above.
+
 ## One-time fork setup: disable CrossInk's release workflows
 
 Right after creating the `chytanka` fork on GitHub, go to **Settings →
@@ -168,3 +205,5 @@ After every rebase onto a new upstream CrossInk tag:
 - `src/activities/boot_sleep/BootActivity.cpp`,
   `src/activities/boot_sleep/SleepActivity.cpp` — call sites / frozen `#else`
   fallbacks.
+- `src/CrossPointSettings.cpp` (`getDefaultDeviceName()`) — Chytanka default
+  device name and its length caveats, traced above.
