@@ -671,7 +671,13 @@ void SleepActivity::renderDefaultSleepScreen() const {
   const std::string buildInfo = std::string(CROSSINK_BUILD_ENV) + " " + CROSSINK_VERSION;
   const std::string visibleBuildInfo =
       renderer.truncatedText(SMALL_FONT_ID, buildInfo.c_str(), pageWidth - sleepBuildInfoSideMargin * 2);
+#ifdef CHYTANKA
+  // The Chytanka brand block reaches below H/2 + 118; use the boot screen's
+  // version slot instead.
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, visibleBuildInfo.c_str(), lightSleepScreen);
+#else
   renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 118, visibleBuildInfo.c_str(), lightSleepScreen);
+#endif
 #endif
 
   renderer.displayBuffer(HalDisplay::HALF_REFRESH, TURN_OFF_SCREEN_AFTER_SLEEP_REFRESH);

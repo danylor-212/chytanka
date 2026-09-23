@@ -247,13 +247,14 @@ After every rebase onto a new upstream CrossInk tag:
    `#ifdef CHYTANKA_DEFAULT_LANGUAGE`) still sits where it did relative to
    `SETTINGS.loadFromFile()` — it must run strictly before that call for the
    "saved language wins" behavior described above to hold.
-6. Do **not** enable `CROSSINK_SHOW_SLEEP_BUILD_INFO` in `[env:ua]`. On the
-   Chytanka sleep screen the build-info line CrossInk draws with that flag
-   overlaps the brand status line Chytanka draws at `H/2 + 118`
-   (`chytanka::drawBrandBlock()` draws its `status` line at `pageHeight / 2 +
-   120`, and `SleepActivity.cpp`'s `CROSSINK_SHOW_SLEEP_BUILD_INFO` block sits
-   right under it) — it's fine (and used) in `[env:debug]`, just never copy it
-   into the Chytanka release env.
+6. `CROSSINK_SHOW_SLEEP_BUILD_INFO` (used by `[env:debug]`, never needed in
+   `[env:ua]`): stock CrossInk draws that line at `H/2 + 118`, which would
+   land on Chytanka's larger brand block (240x240 logo lifted 40 px above
+   centre, then «Читанка» in UI_12 bold, credit and status in SMALL — see the
+   layout constants in `chytanka::drawBrandBlock()`). Under `CHYTANKA`,
+   `SleepActivity::renderDefaultSleepScreen()` moves the line to `H - 30`
+   (the boot screen's version slot). If upstream moves or restyles that
+   block, keep the `#ifdef CHYTANKA` branch in step.
 7. Check `SleepActivity::renderBitmapSleepScreen()` against the display
    sequence copied into `chytanka::renderQuoteCardSleepScreen()`
    (`ChytankaQuoteSleep.cpp`: cover filter, Absolute/Direct grayscale base,
