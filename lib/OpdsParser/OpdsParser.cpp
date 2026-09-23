@@ -1,6 +1,7 @@
 #include "OpdsParser.h"
 
 #include <Logging.h>
+#include <Utf8.h>
 #include <XmlParserUtils.h>
 
 #include <cstring>
@@ -153,12 +154,6 @@ void OpdsParser::assignBounded(std::string& target, const char* value, const siz
   target.assign(value, strnlen(value, maxLen));
 }
 
-void OpdsParser::appendBounded(std::string& target, const char* value, const size_t len, const size_t maxLen) {
-  if (target.size() >= maxLen) return;
-  const size_t remaining = maxLen - target.size();
-  target.append(value, len < remaining ? len : remaining);
-}
-
 void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<OpdsParser*>(userData);
 
@@ -212,14 +207,17 @@ void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, cons
   if (strcmp(name, "title") == 0 || strstr(name, ":title") != nullptr) {
     self->inTitle = true;
     self->currentText.clear();
+    self->currentTextTruncated = false;
   } else if (strcmp(name, "author") == 0 || strstr(name, ":author") != nullptr) {
     self->inAuthor = true;
   } else if (self->inAuthor && (strcmp(name, "name") == 0 || strstr(name, ":name") != nullptr)) {
     self->inAuthorName = true;
     self->currentText.clear();
+    self->currentTextTruncated = false;
   } else if (strcmp(name, "id") == 0 || strstr(name, ":id") != nullptr) {
     self->inId = true;
     self->currentText.clear();
+    self->currentTextTruncated = false;
   }
 }
 
@@ -237,11 +235,15 @@ void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
     self->inEntry = false;
   } else if (self->inEntry) {
     if (strcmp(name, "title") == 0 || strstr(name, ":title") != nullptr) {
-      if (self->inTitle) self->currentEntry.title = std::move(self->currentText);
+      if (self->inTitle) {
+        if (self->currentTextTruncated) utf8EllipsizeTruncated(self->currentText);
+        self->currentEntry.title = std::move(self->currentText);
+      }
       self->inTitle = false;
     } else if (strcmp(name, "author") == 0 || strstr(name, ":author") != nullptr) {
       self->inAuthor = false;
     } else if (self->inAuthorName && (strcmp(name, "name") == 0 || strstr(name, ":name") != nullptr)) {
+      if (self->currentTextTruncated) utf8EllipsizeTruncated(self->currentText);
       self->currentEntry.author = std::move(self->currentText);
       self->inAuthorName = false;
     } else if (strcmp(name, "id") == 0 || strstr(name, ":id") != nullptr) {
@@ -253,11 +255,11 @@ void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
 
 void XMLCALL OpdsParser::characterData(void* userData, const XML_Char* s, const int len) {
   auto* self = static_cast<OpdsParser*>(userData);
-  if (self->inTitle) {
-    appendBounded(self->currentText, s, len, MAX_TITLE_CHARS);
-  } else if (self->inAuthorName) {
-    appendBounded(self->currentText, s, len, MAX_AUTHOR_CHARS);
-  } else if (self->inId) {
-    appendBounded(self->currentText, s, len, MAX_ID_CHARS);
+  // Limits are in bytes; cut at a UTF-8 character boundary so a Cyrillic
+  // title never ends in half a letter.
+  const size_t limit = self->inTitle ? MAX_TITLE_CHARS : self->inAuthorName ? MAX_AUTHOR_CHARS : MAX_ID_CHARS;
+  if ((self->inTitle || self->inAuthorName || self->inId) && len > 0 &&
+      utf8AppendBounded(self->currentText, s, static_cast<size_t>(len), limit)) {
+    self->currentTextTruncated = true;
   }
 }

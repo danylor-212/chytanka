@@ -43,6 +43,16 @@ int utf8SafeTruncateBuffer(const char* buf, int len);
 // character (for example a Cyrillic word in a fixed-size label buffer).
 void utf8TrimIncompleteTail(char* buf);
 
+// Appends `src[0, len)` to `target` while keeping `target` at most `maxBytes`
+// long, cutting only at a UTF-8 character boundary (never inside a Cyrillic
+// letter). Returns true when bytes had to be dropped.
+bool utf8AppendBounded(std::string& target, const char* src, size_t len, size_t maxBytes);
+
+// Marks text that utf8AppendBounded() shortened: cuts back to the last space
+// when one lies in the final third (so a word is not left half-shown), drops
+// trailing spaces and commas, and appends "…".
+void utf8EllipsizeTruncated(std::string& text);
+
 // Returns true for CJK characters that allow line breaks on either side without hyphenation.
 // Covers CJK Unified Ideographs, Hiragana, Katakana, Hangul Syllables, CJK punctuation,
 // and fullwidth forms — the ranges where word boundaries are implicit per character.

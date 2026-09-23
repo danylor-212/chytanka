@@ -177,7 +177,6 @@ class OpdsParser final : public Print {
   // Helper to find attribute value
   static const char* findAttribute(const XML_Char** atts, const char* name);
   static void assignBounded(std::string& target, const char* value, size_t maxLen);
-  static void appendBounded(std::string& target, const char* value, size_t len, size_t maxLen);
 
   XML_Parser parser = nullptr;
   OpdsEntry* entries = nullptr;
@@ -185,6 +184,7 @@ class OpdsParser final : public Print {
   size_t entryCount = 0;
   OpdsEntry currentEntry;
   std::string currentText;
+  bool currentTextTruncated = false;
 
   // Parser state
   bool inEntry = false;

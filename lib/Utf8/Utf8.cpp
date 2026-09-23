@@ -294,6 +294,29 @@ void utf8TrimIncompleteTail(char* buf) {
   if (len - leadPos < expected) buf[leadPos] = '\0';
 }
 
+bool utf8AppendBounded(std::string& target, const char* src, const size_t len, const size_t maxBytes) {
+  if (src == nullptr || len == 0) return false;
+  if (target.size() >= maxBytes) return true;
+  const size_t remaining = maxBytes - target.size();
+  if (len <= remaining) {
+    target.append(src, len);
+    return false;
+  }
+  size_t cut = remaining;
+  // src[cut] is the first byte left out; if it continues a character, the
+  // character started inside the kept part, so leave the whole thing out.
+  while (cut > 0 && (static_cast<unsigned char>(src[cut]) & 0xC0) == 0x80) --cut;
+  target.append(src, cut);
+  return true;
+}
+
+void utf8EllipsizeTruncated(std::string& text) {
+  const size_t space = text.rfind(' ');
+  if (space != std::string::npos && space > 0 && space >= text.size() * 2 / 3) text.resize(space);
+  while (!text.empty() && (text.back() == ' ' || text.back() == ',')) text.pop_back();
+  text += "\xE2\x80\xA6";  // U+2026 HORIZONTAL ELLIPSIS
+}
+
 size_t utf8RemoveLastChar(std::string& str) {
   if (str.empty()) return 0;
   size_t pos = str.size() - 1;
