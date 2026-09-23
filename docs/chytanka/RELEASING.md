@@ -191,8 +191,10 @@ passes; inverted B/W in Dark therefore ends up light).
 
   It writes `src/images/ChytankaQuoteCards.{h,cpp}` (never edit them by hand;
   the tables sit between `clang-format off/on`, so the formatter leaves them
-  alone) and refuses cards with non-native gray levels or a wrong size. Up to
-  64 cards fit the picker's mask.
+  alone) and refuses cards with non-native gray levels, a wrong size, or
+  anything drawn in rows 0-3 / 796-799 (cut off on the X3). The header records
+  the zlib version used; regenerating with another zlib may change the bytes
+  but not the decoded cards. Up to 64 cards fit the picker's mask.
 - **Format:** per card, 2bpp rows (0 black .. 3 white, leftmost pixel in the
   high bits, as `Bitmap::readNextRow()` hands rows to `GfxRenderer`), one raw
   deflate stream compressed with a 512-byte window, plus a CRC-32 of the

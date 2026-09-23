@@ -38,6 +38,7 @@ WIDTH, HEIGHT = 480, 800
 ROW_BYTES = WIDTH // 4
 WINDOW_BITS = 9
 LEVELS = {0: 0, 85: 1, 170: 2, 255: 3}
+CLIPPED_ROWS = (HEIGHT - 792) // 2  # X3 portrait height 792 -> 4 rows top and bottom
 BYTES_PER_LINE = 19  # "0xAB, " x 19 + indent stays within the 120-column limit
 
 REPO = Path(__file__).resolve().parents[2]
@@ -45,13 +46,15 @@ OUT_H = REPO / "src" / "images" / "ChytankaQuoteCards.h"
 OUT_CPP = REPO / "src" / "images" / "ChytankaQuoteCards.cpp"
 
 
-def load_card(brand: Path, qid: int, quotes: dict | None) -> Image.Image:
-    if quotes is not None:
-        sys.path.insert(0, str(brand / "quotes"))
-        import make_cards  # noqa: E402  (brand-side renderer, needs cairosvg)
+def card_loader(brand: Path, render: bool):
+    """Returns qid -> 480x800 image, from the BMPs or through make_cards.render()."""
+    if not render:
+        return lambda qid: Image.open(brand / "cards" / "public" / f"q{qid:03d}.bmp")
+    sys.path.insert(0, str(brand / "quotes"))
+    import make_cards  # noqa: E402  (brand-side renderer, needs cairosvg)
 
-        return make_cards.render(quotes[qid])
-    return Image.open(brand / "cards" / "public" / f"q{qid:03d}.bmp")
+    quotes = {q["id"]: q for q in json.loads((brand / "quotes" / "quotes.json").read_text(encoding="utf-8"))}
+    return lambda qid: make_cards.render(quotes[qid])
 
 
 def pack(img: Image.Image, qid: int) -> bytes:
@@ -68,6 +71,12 @@ def pack(img: Image.Image, qid: int) -> bytes:
             b = (b << 2) | LEVELS[v]
         out.append(b)
     assert len(out) == ROW_BYTES * HEIGHT
+    # The X3 panel (528x792 portrait) shows the card centred and unscaled, so
+    # these rows are cut off there: they must stay background (white).
+    for y in (*range(CLIPPED_ROWS), *range(HEIGHT - CLIPPED_ROWS, HEIGHT)):
+        if out[y * ROW_BYTES : (y + 1) * ROW_BYTES] != b"\xff" * ROW_BYTES:
+            sys.exit(f"q{qid:03d}: row {y} is not blank; rows 0-{CLIPPED_ROWS - 1} and "
+                     f"{HEIGHT - CLIPPED_ROWS}-{HEIGHT - 1} are clipped on the X3 and must stay white")
     return bytes(out)
 
 
@@ -100,14 +109,12 @@ def main() -> None:
     ids = json.loads((brand / "quotes" / "embedded_ids.json").read_text(encoding="utf-8"))
     if len(ids) != len(set(ids)) or not 0 < len(ids) <= 64:
         sys.exit("embedded_ids.json must list 1..64 unique ids (the device picker uses a 64-bit mask)")
-    quotes = None
-    if args.render:
-        quotes = {q["id"]: q for q in json.loads((brand / "quotes" / "quotes.json").read_text(encoding="utf-8"))}
+    load_card = card_loader(brand, args.render)
 
     blob = bytearray()
     entries = []
     for qid in ids:
-        raw = pack(load_card(brand, qid, quotes), qid)
+        raw = pack(load_card(qid), qid)
         data = deflate(raw)
         if len(data) > 0xFFFF:
             sys.exit(f"q{qid:03d}: compressed card too large ({len(data)} B)")
@@ -122,7 +129,7 @@ def main() -> None:
 // Fork-only («Читанка»): quote cards for the default sleep screen. Each card is
 // {WIDTH}x{HEIGHT}, 2 bits per pixel (0 black .. 3 white, leftmost pixel in the
 // high bits), rows top-down, compressed as one raw deflate stream with a
-// {1 << WINDOW_BITS}-byte window. See docs/chytanka/RELEASING.md.
+// {1 << WINDOW_BITS}-byte window (zlib {zlib.ZLIB_RUNTIME_VERSION}, level 9). See docs/chytanka/RELEASING.md.
 
 #include <cstdint>
 

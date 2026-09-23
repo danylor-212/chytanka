@@ -102,7 +102,7 @@ TEST(ChytankaQuoteCards, EveryCardDecodesToItsSourceCrc) {
   }
 }
 
-TEST(ChytankaQuoteCards, CardsUseGrayLevelsAndWhiteMargins) {
+TEST(ChytankaQuoteCards, CardsUseGrayLevels) {
   QuoteCardDecoder decoder;
   std::vector<uint8_t> levels;
   ASSERT_TRUE(decoder.beginCard(0));
@@ -112,9 +112,25 @@ TEST(ChytankaQuoteCards, CardsUseGrayLevelsAndWhiteMargins) {
   EXPECT_GT(histogram[0], 0);                       // black text
   EXPECT_GT(histogram[1] + histogram[2], 0);        // anti-aliasing / ornament grays
   EXPECT_GT(histogram[3], QUOTE_CARD_WIDTH * 400);  // mostly white card
-  // The X3 (528x792) clips 4 rows top and bottom: they must be blank.
-  for (int y : {0, 1, 2, 3, QUOTE_CARD_HEIGHT - 4, QUOTE_CARD_HEIGHT - 1}) {
-    for (int x = 0; x < QUOTE_CARD_WIDTH; x++) ASSERT_EQ(levels[y * QUOTE_CARD_WIDTH + x], 3) << x << "," << y;
+}
+
+// The X3 (528x792 portrait) shows the card centred and unscaled, clipping rows
+// 0-3 and 796-799: every card must keep them background (white).
+TEST(ChytankaQuoteCards, EveryCardKeepsX3ClippedRowsBlank) {
+  constexpr int clipped = (QUOTE_CARD_HEIGHT - 792) / 2;
+  static_assert(clipped == 4);
+  QuoteCardDecoder decoder;
+  std::vector<uint8_t> levels;
+  for (int i = 0; i < QUOTE_CARD_COUNT; i++) {
+    ASSERT_TRUE(decoder.beginCard(i));
+    ASSERT_TRUE(decodeLevels(decoder, levels));
+    for (int y = 0; y < QUOTE_CARD_HEIGHT; y++) {
+      if (y >= clipped && y < QUOTE_CARD_HEIGHT - clipped) continue;
+      for (int x = 0; x < QUOTE_CARD_WIDTH; x++) {
+        ASSERT_EQ(levels[y * QUOTE_CARD_WIDTH + x], 3)
+            << "card " << i << " (id " << QUOTE_CARDS[i].quoteId << ") at " << x << "," << y;
+      }
+    }
   }
 }
 

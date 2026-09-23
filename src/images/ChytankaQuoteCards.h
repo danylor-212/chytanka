@@ -6,7 +6,7 @@
 // Fork-only («Читанка»): quote cards for the default sleep screen. Each card is
 // 480x800, 2 bits per pixel (0 black .. 3 white, leftmost pixel in the
 // high bits), rows top-down, compressed as one raw deflate stream with a
-// 512-byte window. See docs/chytanka/RELEASING.md.
+// 512-byte window (zlib 1.3, level 9). See docs/chytanka/RELEASING.md.
 
 #include <cstdint>
 
