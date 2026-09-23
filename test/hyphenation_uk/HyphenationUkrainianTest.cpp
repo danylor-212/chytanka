@@ -15,6 +15,13 @@ std::vector<size_t> offsets(const std::string& word) {
   return out;
 }
 
+const Hyphenator::BreakInfo* breakAt(const std::vector<Hyphenator::BreakInfo>& breaks, size_t byteOffset) {
+  for (const auto& b : breaks) {
+    if (b.byteOffset == byteOffset) return &b;
+  }
+  return nullptr;
+}
+
 }  // namespace
 
 TEST(ToLowerCyrillic, BasicRangeUnchanged) {
@@ -71,4 +78,57 @@ TEST(UkrainianHyphenation, CapitalisedWordsMatchLowercase) {
     ASSERT_FALSE(lowerOffsets.empty()) << "no breaks at all for " << lower;
     EXPECT_EQ(offsets(upper), lowerOffsets) << upper;
   }
+}
+
+// U+02BC MODIFIER LETTER APOSTROPHE is the standard Ukrainian apostrophe. It must hyphenate
+// exactly like the ASCII apostrophe form, shifted by the 1 extra byte U+02BC (2 bytes) costs
+// over ASCII "'" (1 byte) at every offset from the apostrophe onward.
+TEST(UkrainianHyphenation, ModifierApostropheWordIsHyphenatable) {
+  Hyphenator::setPreferredLanguage("uk");
+  const auto modifierOffsets = offsets("обʼєднання");
+  const auto asciiOffsets = offsets("об'єднання");
+  ASSERT_FALSE(modifierOffsets.empty());
+  ASSERT_EQ(modifierOffsets.size(), asciiOffsets.size());
+  constexpr size_t kApostropheByteOffset = 4;  // "об" = 4 bytes.
+  for (size_t i = 0; i < modifierOffsets.size(); ++i) {
+    const size_t expected = asciiOffsets[i] >= kApostropheByteOffset ? asciiOffsets[i] + 1 : asciiOffsets[i];
+    EXPECT_EQ(modifierOffsets[i], expected);
+  }
+}
+
+// "під" = 6 bytes, "ʼ" (U+02BC) = 2 bytes -> "ї" starts at byte 8.
+TEST(ApostropheBreaks, ModifierApostropheInCyrillicInsertsHyphen) {
+  Hyphenator::setPreferredLanguage("uk");
+  const auto breaks = Hyphenator::breakOffsets("підʼїзд", false);
+  const auto* b = breakAt(breaks, 8);
+  ASSERT_NE(b, nullptr) << "expected a break right after the apostrophe";
+  EXPECT_TRUE(b->requiresInsertedHyphen) << "Ukrainian apostrophe break must show a hyphen";
+}
+
+// ASCII apostrophe between Cyrillic letters: "під" = 6 bytes, "'" = 1 byte -> "ї" at byte 7.
+TEST(ApostropheBreaks, AsciiApostropheInCyrillicInsertsHyphen) {
+  Hyphenator::setPreferredLanguage("uk");
+  const auto breaks = Hyphenator::breakOffsets("під'їзд", false);
+  const auto* b = breakAt(breaks, 7);
+  ASSERT_NE(b, nullptr);
+  EXPECT_TRUE(b->requiresInsertedHyphen);
+}
+
+// U+02BC is a letter (a modifier, not elision punctuation) in any script, so it inserts a
+// hyphen even between Latin letters. "abc" = 3 bytes, "ʼ" (U+02BC) = 2 bytes -> "defg" at byte 5.
+TEST(ApostropheBreaks, ModifierApostropheInLatinInsertsHyphen) {
+  Hyphenator::setPreferredLanguage("en");
+  const auto breaks = Hyphenator::breakOffsets("abcʼdefg", false);
+  const auto* b = breakAt(breaks, 5);
+  ASSERT_NE(b, nullptr);
+  EXPECT_TRUE(b->requiresInsertedHyphen);
+}
+
+// Latin elision keeps breaking without an inserted hyphen.
+TEST(ApostropheBreaks, LatinElisionBreaksWithoutHyphen) {
+  Hyphenator::setPreferredLanguage("it");
+  const auto breaks = Hyphenator::breakOffsets("all'improvviso", false);
+  const auto* b = breakAt(breaks, 4);
+  ASSERT_NE(b, nullptr);
+  EXPECT_FALSE(b->requiresInsertedHyphen);
 }

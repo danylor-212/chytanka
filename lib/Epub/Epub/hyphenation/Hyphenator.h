@@ -10,9 +10,11 @@ class Hyphenator {
  public:
   struct BreakInfo {
     size_t byteOffset;            // Byte position inside the UTF-8 word where a break may occur.
-    bool requiresInsertedHyphen;  // true = a visible '-' must be rendered at the break (pattern/fallback breaks).
+    bool requiresInsertedHyphen;  // true = a visible '-' must be rendered at the break (pattern/fallback breaks;
+                                  //        apostrophe contraction boundaries after a Cyrillic letter or at
+                                  //        U+02BC, which is a letter in any script).
                                   // false = break occurs at an existing visible separator boundary
-                                  //         (explicit '-' or eligible apostrophe contraction boundary).
+                                  //         (explicit '-', or a Latin elision apostrophe boundary).
   };
 
   // Returns byte offsets where the word may be hyphenated.
@@ -28,6 +30,9 @@ class Hyphenator {
   //      A direct break at the apostrophe boundary is allowed only when the left
   //      segment has at least 3 letters and the right segment has at least 3 letters,
   //      avoiding short clitics (e.g. l', d') and contraction tails (e.g. 've, 're, 'll).
+  //      Latin elision breaks with no inserted hyphen; when the apostrophe sits between
+  //      Cyrillic letters (e.g. під'їзд) or is U+02BC (a letter, not elision punctuation,
+  //      in any script) it is part of the word, so the break inserts one.
   //   3. Language-specific Liang patterns (e.g. German de_patterns).
   //      Example: "Quadratkilometer" -> Qua|drat|ki|lo|me|ter.
   //   4. Fallback every-N-chars splitting (only when includeFallback is true AND no

@@ -147,7 +147,12 @@ void appendApostropheContractionBreaks(const std::vector<CodepointInfo>& cps,
 
         // Avoid stranding short clitics like "l'"/"d'" or contraction tails like "'ve"/"'re"/"'ll".
         if (leftPrefixLen >= kMinLeftSegmentLen && rightSuffixLen >= kMinRightSegmentLen) {
-          outBreaks.push_back({cps[i + 1].byteOffset, false});
+          // Latin elision (all'improvviso) breaks at the apostrophe with no visible hyphen.
+          // U+02BC is a letter (a modifier, not elision punctuation) in any script, and any
+          // apostrophe after a Cyrillic letter is part of the word (під'їзд) rather than an
+          // elided vowel, so both cases show a hyphen: "під'-" / "їзд".
+          const bool needsHyphen = cps[i].value == 0x02BC || isCyrillicLetter(cps[i - 1].value);
+          outBreaks.push_back({cps[i + 1].byteOffset, needsHyphen});
         }
       }
       segmentStart = i + 1;

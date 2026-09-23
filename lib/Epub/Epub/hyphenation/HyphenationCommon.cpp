@@ -141,6 +141,7 @@ bool isApostrophe(const uint32_t cp) {
     case '\'':
     case 0x2018:  // left single quotation mark
     case 0x2019:  // right single quotation mark
+    case 0x02BC:  // modifier letter apostrophe (standard Ukrainian apostrophe)
       return true;
     default:
       return false;
