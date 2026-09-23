@@ -454,8 +454,17 @@ void drawRightAlignedIconLabel(const GfxRenderer& renderer, const uint8_t* icon,
   renderer.drawText(UI_10_FONT_ID, textX, centerY - lineH / 2, visibleLabel.c_str(), !inverted);
 }
 
+// Centres a footer value over its label, but keeps it inside the footer cell
+// [cellLeft, cellRight] so a value wider than a short label (e.g. a long
+// localized duration) cannot run past the screen margin.
+int footerValueX(const int labelX, const int labelW, const int valueW, const int cellLeft, const int cellRight) {
+  const int centeredX = labelX + (labelW - valueW) / 2;
+  return std::max(cellLeft, std::min(centeredX, cellRight - valueW));
+}
+
 void drawLeftAnchoredFooterStat(const GfxRenderer& renderer, const int labelX, const int centerY, const int maxTextW,
-                                const char* value, const char* label, const bool inverted = false) {
+                                const char* value, const char* label, const int cellLeft, const int cellRight,
+                                const bool inverted = false) {
   const int valueLineH = renderer.getLineHeight(UI_12_FONT_ID);
   const int labelLineH = renderer.getLineHeight(UI_10_FONT_ID);
   const int totalH = valueLineH + kStatsValueLabelGap + labelLineH;
@@ -463,13 +472,14 @@ void drawLeftAnchoredFooterStat(const GfxRenderer& renderer, const int labelX, c
   const std::string visibleLabel = renderer.truncatedText(UI_10_FONT_ID, label, maxTextW);
   const int labelW = renderer.getTextWidth(UI_10_FONT_ID, visibleLabel.c_str());
   const int topY = centerY - totalH / 2;
-  renderer.drawText(UI_12_FONT_ID, labelX + (labelW - valueW) / 2, topY, value, !inverted, EpdFontFamily::BOLD);
+  renderer.drawText(UI_12_FONT_ID, footerValueX(labelX, labelW, valueW, cellLeft, cellRight), topY, value, !inverted,
+                    EpdFontFamily::BOLD);
   renderer.drawText(UI_10_FONT_ID, labelX, topY + valueLineH + kStatsValueLabelGap, visibleLabel.c_str(), !inverted);
 }
 
 void drawRightAnchoredFooterStat(const GfxRenderer& renderer, const int labelRightX, const int centerY,
-                                 const int maxTextW, const char* value, const char* label,
-                                 const bool inverted = false) {
+                                 const int maxTextW, const char* value, const char* label, const int cellLeft,
+                                 const int cellRight, const bool inverted = false) {
   const int valueLineH = renderer.getLineHeight(UI_12_FONT_ID);
   const int labelLineH = renderer.getLineHeight(UI_10_FONT_ID);
   const int totalH = valueLineH + kStatsValueLabelGap + labelLineH;
@@ -478,7 +488,8 @@ void drawRightAnchoredFooterStat(const GfxRenderer& renderer, const int labelRig
   const int labelW = renderer.getTextWidth(UI_10_FONT_ID, visibleLabel.c_str());
   const int labelX = labelRightX - labelW;
   const int topY = centerY - totalH / 2;
-  renderer.drawText(UI_12_FONT_ID, labelX + (labelW - valueW) / 2, topY, value, !inverted, EpdFontFamily::BOLD);
+  renderer.drawText(UI_12_FONT_ID, footerValueX(labelX, labelW, valueW, cellLeft, cellRight), topY, value, !inverted,
+                    EpdFontFamily::BOLD);
   renderer.drawText(UI_10_FONT_ID, labelX, topY + valueLineH + kStatsValueLabelGap, visibleLabel.c_str(), !inverted);
 }
 
@@ -494,15 +505,23 @@ void drawFooterStats(const GfxRenderer& renderer, const Rect& coverRect, const G
     char booksRead[16];
     const uint32_t totalReadingSeconds = globalStats != nullptr ? globalStats->totalReadingSeconds : 0;
     const uint32_t completedBooks = globalStats != nullptr ? globalStats->completedBooks : 0;
-    const int halfW = renderer.getScreenWidth() / 2;
+    const int screenW = renderer.getScreenWidth();
+    const int halfW = screenW / 2;
     const int maxTextW = std::max(1, halfW - inset * 2);
+    // Each stat owns half the footer minus the screen margin on its outer
+    // side and half a margin on each side of the centre line. The duration is
+    // shortened (minutes dropped, then ellipsis) to fit that cell.
+    const int leftCellLeft = inset;
+    const int leftCellRight = halfW - inset / 2;
+    const int rightCellLeft = halfW + inset / 2;
+    const int rightCellRight = screenW - inset;
     formatStatsDuration(renderer, totalReadingSeconds, LocaleFormat::DurationStyle::Long, DurationRounding::Floor,
-                        maxTextW, totalTime, sizeof(totalTime));
+                        std::max(1, leftCellRight - leftCellLeft), totalTime, sizeof(totalTime));
     snprintf(booksRead, sizeof(booksRead), "%lu", static_cast<unsigned long>(completedBooks));
     drawLeftAnchoredFooterStat(renderer, coverRect.x, centerY, maxTextW, totalTime,
-                               tr(STR_STATS_TOTAL_READING_TIME_LBL_SHORT), inverted);
-    const int rightX = renderer.getScreenWidth() - inset;
-    drawRightAnchoredFooterStat(renderer, rightX, centerY, maxTextW, booksRead, tr(STR_STATS_COMPLETED_LBL), inverted);
+                               tr(STR_STATS_TOTAL_READING_TIME_LBL_SHORT), leftCellLeft, leftCellRight, inverted);
+    drawRightAnchoredFooterStat(renderer, rightCellRight, centerY, maxTextW, booksRead, tr(STR_STATS_COMPLETED_LBL),
+                                rightCellLeft, rightCellRight, inverted);
     return;
   }
 
