@@ -69,6 +69,8 @@ void saveHistory(const QuoteCardHistory& history) {
 // card as an SD sleep BMP. The card is centred without scaling: on the X3
 // (528x792) that leaves 24 px white side margins and clips 4 blank rows at
 // the top and bottom of the card. Margins get the card's background level.
+// The caller must clear the pass to quoteCardClearByte(): background pixels
+// are skipped, not drawn.
 bool drawCardPass(GfxRenderer& renderer, QuoteCardDecoder& decoder, const int card, const int x0, const int y0,
                   const bool inverted) {
   if (!decoder.beginCard(card)) return false;
@@ -85,18 +87,18 @@ bool drawCardPass(GfxRenderer& renderer, QuoteCardDecoder& decoder, const int ca
     const uint8_t* row = decoder.nextRow();
     if (!row) return false;
     const int y = y0 + cy;
-    if (y < 0 || y >= screenHeight) continue;
+    // Background pixels already hold their final value from the pass's
+    // clearScreen(quoteCardClearByte(...)), so only foreground is drawn.
+    if (y < 0 || y >= screenHeight || quoteCardRowIsBackground(row)) continue;
 
-    for (int cx = firstX; cx < endX; cx++) {
-      const uint8_t level = quoteCardLevel((row[cx >> 2] >> (6 - ((cx & 3) << 1))) & 0x3, inverted);
+    forEachQuoteCardForegroundPixel(row, firstX, endX, inverted, [&](const int cx, const uint8_t level) {
       if (mode == GfxRenderer::BW) {
-        // Write white too: the inverted card's background is black.
         renderer.drawPixel(x0 + cx, y, level < 3);
       } else {
         const GrayPlanePixel pixel = grayPlanePixel(level, msb, absolute);
         if (pixel.write) renderer.drawPixel(x0 + cx, y, pixel.black);
       }
-    }
+    });
   }
   return decoder.finish();
 }
@@ -126,7 +128,8 @@ bool renderQuoteCardSleepScreen(GfxRenderer& renderer, const bool turnOffScreen)
   // levels are swapped in every pass, so the gray planes stay correct.
   const bool inverted = SETTINGS.sleepScreen != CrossPointSettings::SLEEP_SCREEN_MODE::LIGHT;
 
-  renderer.clearScreen(inverted ? 0x00 : 0xFF);
+  // Background (and margins) = clear value, see quoteCardClearByte().
+  renderer.clearScreen(quoteCardClearByte(false, false, inverted));
   if (!drawCardPass(renderer, *decoder, card, x0, y0, inverted)) {
     LOG_ERR("SLP", "Quote card %d (id %u) failed to decode", card, QUOTE_CARDS[card].quoteId);
     return false;
@@ -153,10 +156,10 @@ bool renderQuoteCardSleepScreen(GfxRenderer& renderer, const bool turnOffScreen)
   }
 
   for (const auto mode : {GfxRenderer::GRAYSCALE_LSB, GfxRenderer::GRAYSCALE_MSB}) {
-    // Absolute margins must be present in both complete planes: white is
-    // 0xFF there, black (the inverted card's background) 0x00. Relative
-    // planes only mark gray pixels, so they start empty.
-    renderer.clearScreen(absolute && !inverted ? 0xFF : 0x00);
+    // Absolute planes are complete, so the background and margins must be
+    // present in both: 0xFF white / 0x00 black. Relative planes only mark gray
+    // pixels and start empty. Either way the background is never drawn.
+    renderer.clearScreen(quoteCardClearByte(true, absolute, inverted));
     renderer.setRenderMode(mode);
     if (!drawCardPass(renderer, *decoder, card, x0, y0, inverted)) {
       LOG_ERR("SLP", "Quote card %d failed to decode in a grayscale pass", card);

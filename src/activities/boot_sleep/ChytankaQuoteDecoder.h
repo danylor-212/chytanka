@@ -46,12 +46,56 @@ class QuoteCardDecoder {
   bool failed = true;
 };
 
-// Gray level to draw for a decoded card pixel (0 black .. 3 white). Dark sleep
-// mode shows the card inverted (light text on black) by mapping levels before
-// every render pass: 0<->3, 1<->2. Inverting the finished B/W framebuffer
-// instead would leave the gray planes un-inverted.
+// Gray level to draw for a decoded card pixel (`level` 0 black .. 3 white).
+// Dark sleep mode shows the card inverted (light text on black) by mapping
+// levels before every render pass: 0<->3, 1<->2. Inverting the finished B/W
+// framebuffer instead would leave the gray planes un-inverted.
 constexpr uint8_t quoteCardLevel(const uint8_t level, const bool inverted) {
-  return inverted ? static_cast<uint8_t>(3 - (level & 0x3)) : static_cast<uint8_t>(level & 0x3);
+  return inverted ? static_cast<uint8_t>(3 - level) : level;
+}
+
+// Level of the card background as drawn: white, or black when inverted. It is
+// always a source-white (3) pixel, i.e. a 0xFF byte covers four of them.
+constexpr uint8_t quoteCardBackground(const bool inverted) { return quoteCardLevel(3, inverted); }
+
+// Framebuffer byte to clear to before a pass so that every background pixel
+// already has its final value and can be skipped (drawPixel(true) clears a
+// bit: 0x00 = all black, 0xFF = all white):
+//   B/W pass:            background white -> 0xFF, black -> 0x00.
+//   Absolute gray plane: grayPlanePixel() writes level 3 as white and level 0
+//                        as black in both planes -> 0xFF / 0x00 likewise.
+//   Relative gray plane: only levels 1 and 2 are ever written, background
+//                        (0 or 3) never is -> start empty (0x00), as upstream.
+constexpr uint8_t quoteCardClearByte(const bool grayPass, const bool absolute, const bool inverted) {
+  if (grayPass && !absolute) return 0x00;
+  return inverted ? 0x00 : 0xFF;
+}
+
+// True when a decoded row is all background (every source pixel white).
+inline bool quoteCardRowIsBackground(const uint8_t* row) {
+  for (int i = 0; i < QUOTE_CARD_ROW_BYTES; i++) {
+    if (row[i] != 0xFF) return false;
+  }
+  return true;
+}
+
+// Calls plot(cx, level) for each pixel cx in [firstX, endX) of a decoded row
+// whose drawn level differs from the background; background pixels (and whole
+// 0xFF bytes) are skipped, relying on the pass having been cleared to
+// quoteCardClearByte().
+template <typename Plot>
+void forEachQuoteCardForegroundPixel(const uint8_t* row, const int firstX, const int endX, const bool inverted,
+                                     Plot&& plot) {
+  for (int cx = firstX; cx < endX;) {
+    const uint8_t packed = row[cx >> 2];
+    if (packed == 0xFF) {
+      cx = (cx | 3) + 1;  // next byte: four background pixels
+      continue;
+    }
+    const uint8_t level = (packed >> (6 - ((cx & 3) << 1))) & 0x3;
+    if (level != 3) plot(cx, quoteCardLevel(level, inverted));
+    cx++;
+  }
 }
 
 // Persisted shuffle-bag state: every card is shown once per cycle, in random

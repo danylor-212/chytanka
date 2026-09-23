@@ -8,8 +8,10 @@
 #include <string>
 #include <vector>
 
+#include "BitmapHelpers.h"  // grayPlanePixel()
 #include "ChytankaQuoteDecoder.h"
 
+using chytanka::forEachQuoteCardForegroundPixel;
 using chytanka::pickQuoteCard;
 using chytanka::QUOTE_CARD_COUNT;
 using chytanka::QUOTE_CARD_DATA;
@@ -17,9 +19,11 @@ using chytanka::QUOTE_CARD_HEIGHT;
 using chytanka::QUOTE_CARD_ROW_BYTES;
 using chytanka::QUOTE_CARD_WIDTH;
 using chytanka::QUOTE_CARDS;
+using chytanka::quoteCardClearByte;
 using chytanka::QuoteCardDecoder;
 using chytanka::QuoteCardHistory;
 using chytanka::quoteCardLevel;
+using chytanka::quoteCardRowIsBackground;
 
 namespace {
 
@@ -230,6 +234,91 @@ TEST(ChytankaQuoteCards, DarkModeInvertsLevels) {
     inverted[quoteCardLevel(level, true)]++;
   }
   for (int level = 0; level < 4; level++) EXPECT_EQ(inverted[level], normal[3 - level]);
+}
+
+// Mock framebuffer for one render pass over the card area: 1 = bit set
+// (white), 0 = cleared (black), as GfxRenderer::drawPixel(state) leaves it.
+struct MockPlane {
+  std::vector<uint8_t> bits;
+  long drawCalls = 0;
+  void clear(const uint8_t byte) {
+    bits.assign(static_cast<size_t>(QUOTE_CARD_WIDTH) * QUOTE_CARD_HEIGHT, byte ? 1 : 0);
+  }
+  void drawPixel(const int x, const int y, const bool black) {
+    bits[static_cast<size_t>(y) * QUOTE_CARD_WIDTH + x] = black ? 0 : 1;
+    drawCalls++;
+  }
+};
+
+enum class Pass { BW, LSB, MSB };
+
+void drawPixelForPass(MockPlane& plane, const Pass pass, const bool absolute, const int x, const int y,
+                      const uint8_t level) {
+  if (pass == Pass::BW) {
+    plane.drawPixel(x, y, level < 3);
+    return;
+  }
+  const GrayPlanePixel pixel = grayPlanePixel(level, pass == Pass::MSB, absolute);
+  if (pixel.write) plane.drawPixel(x, y, pixel.black);
+}
+
+// The previous full draw: every pixel visited; B/W and absolute planes write
+// every pixel, so they start from the opposite clear value to prove it.
+void naivePass(const std::vector<uint8_t>& levels, MockPlane& plane, const Pass pass, const bool absolute,
+               const bool inverted) {
+  const uint8_t clear = quoteCardClearByte(pass != Pass::BW, absolute, inverted);
+  const bool fullWrite = pass == Pass::BW || absolute;
+  plane.clear(fullWrite ? static_cast<uint8_t>(~clear) : clear);
+  for (int y = 0; y < QUOTE_CARD_HEIGHT; y++) {
+    for (int x = 0; x < QUOTE_CARD_WIDTH; x++) {
+      drawPixelForPass(plane, pass, absolute, x, y, quoteCardLevel(levels[y * QUOTE_CARD_WIDTH + x], inverted));
+    }
+  }
+}
+
+// Mirrors drawCardPass(): clear to quoteCardClearByte(), skip background rows
+// and pixels.
+bool skippingPass(QuoteCardDecoder& decoder, const int card, MockPlane& plane, const Pass pass, const bool absolute,
+                  const bool inverted) {
+  plane.clear(quoteCardClearByte(pass != Pass::BW, absolute, inverted));
+  if (!decoder.beginCard(card)) return false;
+  for (int y = 0; y < QUOTE_CARD_HEIGHT; y++) {
+    const uint8_t* row = decoder.nextRow();
+    if (!row) return false;
+    if (quoteCardRowIsBackground(row)) continue;
+    forEachQuoteCardForegroundPixel(row, 0, QUOTE_CARD_WIDTH, inverted, [&](const int x, const uint8_t level) {
+      drawPixelForPass(plane, pass, absolute, x, y, level);
+    });
+  }
+  return decoder.finish();
+}
+
+TEST(ChytankaQuoteCards, SkippingBackgroundMatchesFullDraw) {
+  QuoteCardDecoder decoder;
+  std::vector<uint8_t> levels;
+  MockPlane naive, skipping;
+  long naiveCalls = 0, skippingCalls = 0;
+  for (int card = 0; card < QUOTE_CARD_COUNT; card++) {
+    ASSERT_TRUE(decoder.beginCard(card));
+    ASSERT_TRUE(decodeLevels(decoder, levels));
+    for (const bool inverted : {false, true}) {
+      for (const bool absolute : {false, true}) {
+        for (const Pass pass : {Pass::BW, Pass::LSB, Pass::MSB}) {
+          if (pass == Pass::BW && absolute) continue;  // B/W does not depend on it
+          naive.drawCalls = skipping.drawCalls = 0;
+          naivePass(levels, naive, pass, absolute, inverted);
+          ASSERT_TRUE(skippingPass(decoder, card, skipping, pass, absolute, inverted));
+          ASSERT_EQ(naive.bits, skipping.bits) << "card " << card << " pass " << static_cast<int>(pass) << " absolute "
+                                               << absolute << " inverted " << inverted;
+          naiveCalls += naive.drawCalls;
+          skippingCalls += skipping.drawCalls;
+        }
+      }
+    }
+  }
+  EXPECT_LT(skippingCalls * 5, naiveCalls);
+  printf("drawPixel calls, all cards/passes: full draw %ld, skipping %ld (%.1f%%)\n", naiveCalls, skippingCalls,
+         100.0 * static_cast<double>(skippingCalls) / static_cast<double>(naiveCalls));
 }
 
 TEST(ChytankaQuotePicker, EachCycleShowsEveryCardOnce) {

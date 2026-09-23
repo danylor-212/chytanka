@@ -41,9 +41,10 @@ const uint8_t* QuoteCardDecoder::nextRow() {
   inflater.dest = row;
   inflater.dest_limit = row + sizeof(row);
   const int res = uzlib_uncompress(&inflater);
-  // TINF_OK: the row is full. TINF_DONE with a full row: the stream ended on
-  // this row (only valid for the last one, checked in finish()).
-  if ((res != TINF_OK && res != TINF_DONE) || inflater.dest != inflater.dest_limit) {
+  // uzlib returns TINF_OK as soon as the row is full, before it reads the
+  // end-of-stream marker, so a valid row never comes with TINF_DONE: DONE here
+  // means the stream ended early (truncated). finish() checks the real end.
+  if (res != TINF_OK || inflater.dest != inflater.dest_limit) {
     failed = true;
     return nullptr;
   }

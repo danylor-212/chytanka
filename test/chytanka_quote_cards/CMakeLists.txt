@@ -13,6 +13,7 @@ target_include_directories(ChytankaQuoteCardsTest PRIVATE
   ${REPO_ROOT}/src
   ${REPO_ROOT}/src/activities/boot_sleep
   ${REPO_ROOT}/lib/uzlib/src
+  ${REPO_ROOT}/lib/GfxRenderer
 )
 
 target_compile_definitions(ChytankaQuoteCardsTest PRIVATE CHYTANKA=1)
