@@ -147,7 +147,11 @@ std::string formatCompactDuration(const uint32_t seconds) {
 
 void drawSystemVersionFooter(const GfxRenderer& renderer, const int pageWidth, const int pageHeight,
                              const ThemeMetrics& metrics) {
+#ifdef CHYTANKA
+  const std::string label = "Читанка " CROSSINK_VERSION;
+#else
   const std::string label = "CrossInk " CROSSINK_VERSION;
+#endif
   const int maxWidth = pageWidth - systemVersionFooterSideMargin * 2;
   const int bottomLineY =
       pageHeight - metrics.buttonHintsHeight - metrics.verticalSpacing - systemVersionFooterBottomInset;
