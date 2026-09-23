@@ -1,9 +1,11 @@
 add_executable(DurationFormatTest
   DurationFormatTest.cpp
+  ${REPO_ROOT}/lib/Utf8/Utf8.cpp
 )
 
 target_include_directories(DurationFormatTest PRIVATE
   ${REPO_ROOT}/src
+  ${REPO_ROOT}/lib/Utf8
 )
 
 target_compile_definitions(DurationFormatTest PRIVATE

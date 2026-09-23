@@ -9,12 +9,7 @@
 // that feeds the active UI language's patterns into DurationFormat.h.
 namespace LocaleFormat {
 
-// The duration looks each surface has always used (English shown):
-//   Long:     "< 1 min", "45 min", "3h 0 min", "3h 5 min"  (stats screens)
-//   Compact:  "<1m",     "45m",    "3h",       "3h 5m"     (status bar)
-//   Estimate: "< 1 min", "45 min", "3h",       "3h 5m"     (Dashboard time left)
-//   Carousel: "< 1 min", "45m",    "3h 0m",    "3h 5m"     (Lyra Carousel)
-enum class DurationStyle : uint8_t { Long, Compact, Estimate, Carousel };
+using DurationStyle = ::DurationStyle;
 
 DurationPatterns durationPatterns(DurationStyle style);
 SecondsPatterns secondsPatterns();
@@ -25,11 +20,27 @@ void formatDuration(uint32_t seconds, char* buf, size_t len, DurationStyle style
 // Short interval such as a timeout or idle threshold: "45s", "2m", "2m 30s".
 void formatSeconds(uint32_t seconds, char* buf, size_t len);
 
-// Swaps printf's '.' for the UI language's decimal separator. Only call it on
-// purely numeric text: every '.' in buf is replaced.
+// Swaps printf's '.' decimal points (a '.' between two digits) in buf for the
+// UI language's decimal separator.
 void localizeDecimalSeparator(char* buf);
 
 // printf("%.*f") with the UI language's decimal separator.
 void formatDecimal(double value, int decimals, char* buf, size_t len);
+
+// Month names for month 1-12 ("" when out of range). The full name is the form
+// used next to a day number (Ukrainian genitive: "31 грудня").
+const char* monthShortName(uint8_t month);
+const char* monthFullName(uint8_t month);
+
+// Day and abbreviated month in the UI language's order: "Dec 31", "31 груд.".
+void formatShortDate(uint8_t day, uint8_t month, char* buf, size_t len);
+
+// Expands a date pattern such as tr(STR_DATE_LONG_MDY_PATTERN) with the UI
+// language's month names. See formatDatePattern() for the tokens.
+void formatLongDate(const char* pattern, uint16_t year, uint8_t month, uint8_t day, char* buf, size_t len);
+
+// Replaces the " AM"/" PM" suffix of a 12-hour clock string with the UI
+// language's marker. Other text is left alone.
+void localizeMeridiem(char* buf, size_t len);
 
 }  // namespace LocaleFormat

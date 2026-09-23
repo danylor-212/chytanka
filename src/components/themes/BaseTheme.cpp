@@ -1065,7 +1065,7 @@ void BaseTheme::drawTopStatusBarClock(const GfxRenderer& renderer, int topY, con
     return;
   }
 
-  char timeBuf[9];
+  char timeBuf[16];
   const char* timeText = previewTime;
   if (timeText == nullptr) {
     if (!halClock.isAvailable()) {
@@ -1074,6 +1074,7 @@ void BaseTheme::drawTopStatusBarClock(const GfxRenderer& renderer, int topY, con
     if (!halClock.formatTime(timeBuf, sizeof(timeBuf), SETTINGS.clockUtcOffsetQ, SETTINGS.clockFormat == 1)) {
       return;
     }
+    LocaleFormat::localizeMeridiem(timeBuf, sizeof(timeBuf));
     timeText = timeBuf;
   }
 

@@ -17,6 +17,27 @@ struct DurationPatterns {
 
 enum class DurationRounding : uint8_t { Floor, Nearest };
 
+// The duration looks each surface has always used (English shown):
+//   Long:     "< 1 min", "45 min", "3h 0 min", "3h 5 min"  (stats screens)
+//   Compact:  "<1m",     "45m",    "3h",       "3h 5m"     (status bar)
+//   Estimate: "< 1 min", "45 min", "3h",       "3h 5m"     (Dashboard time left)
+//   Carousel: "< 1 min", "45m",    "3h 0m",    "3h 5m"     (Lyra Carousel)
+enum class DurationStyle : uint8_t { Long, Compact, Estimate, Carousel };
+
+// The translation keys behind each style, as an X-macro so the firmware
+// (StrId + tr()) and the host tests (key names + YAML) share one table:
+// X(style, lessThanMinute, minutes, hours, hoursMinutes, keepZeroMinutes)
+#define DURATION_STYLE_KEYS(X)                                                                                        \
+  X(Long, STR_STATS_LESS_THAN_MIN, STR_DURATION_MIN_FMT, STR_DURATION_H_FMT, STR_DURATION_H_MIN_FMT, true)            \
+  X(Compact, STR_DURATION_LESS_THAN_MIN_SHORT, STR_DURATION_MIN_SHORT_FMT, STR_DURATION_H_FMT,                        \
+    STR_DURATION_H_MIN_SHORT_FMT, false)                                                                              \
+  X(Estimate, STR_STATS_LESS_THAN_MIN, STR_DURATION_MIN_FMT, STR_DURATION_H_FMT, STR_DURATION_H_MIN_SHORT_FMT, false) \
+  X(Carousel, STR_STATS_LESS_THAN_MIN, STR_DURATION_MIN_SHORT_FMT, STR_DURATION_H_FMT, STR_DURATION_H_MIN_SHORT_FMT,  \
+    true)
+
+// X(seconds, minutes, minutesSeconds) for formatSecondsWith().
+#define SECONDS_STYLE_KEYS(X) X(STR_DURATION_SEC_SHORT_FMT, STR_DURATION_MIN_SHORT_FMT, STR_DURATION_MIN_SEC_SHORT_FMT)
+
 // Formats seconds as "< 1 min", "45 min", "3h" or "3h 5 min". A zero minute
 // part is omitted unless keepZeroMinutes is set. hoursOnly drops the minute
 // part for tight slots.
@@ -68,17 +89,5 @@ inline void formatSecondsWith(const SecondsPatterns& patterns, const uint32_t se
     snprintf(buf, len, patterns.minutes, minutes);
   } else {
     snprintf(buf, len, patterns.minutesSeconds, minutes, remainder);
-  }
-}
-
-// Replaces the '.' decimal point that printf emits with the locale's
-// separator. Only single-byte separators are supported; anything else leaves
-// the text unchanged.
-inline void applyDecimalSeparator(char* buf, const char* separator) {
-  if (buf == nullptr || separator == nullptr || separator[0] == '\0' || separator[1] != '\0' || separator[0] == '.') {
-    return;
-  }
-  for (char* p = buf; *p != '\0'; ++p) {
-    if (*p == '.') *p = separator[0];
   }
 }

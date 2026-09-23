@@ -38,7 +38,6 @@
 #include "util/Dictionary.h"
 #include "util/DictionaryRegistry.h"
 #include "util/FontFamilyLabel.h"
-#include "util/LocaleFormat.h"
 
 namespace fui = freeink::ui;
 
@@ -992,7 +991,8 @@ void EpubReaderTouchMenuActivity::buildAutoPageTurnPane(UiApp::ScreenType& scree
   buildPaneHeader(screen);
   buildConfirmButton(screen);
   char value[16];
-  LocaleFormat::formatSeconds(autoPageTurnIntervalSeconds, value, sizeof(value));
+  std::snprintf(value, sizeof(value), tr(STR_DURATION_SEC_SHORT_FMT),
+                static_cast<unsigned long>(autoPageTurnIntervalSeconds));
   ReaderSliderRowProps slider;
   slider.value = value;
   slider.sliderValue =
@@ -2151,7 +2151,8 @@ const char* EpubReaderTouchMenuActivity::rowValue(const RowId row, char* buffer,
       return I18N.get(labels[draft.fontFamily]);
     }
     case RowId::FontSize:
-      std::snprintf(buffer, bufferSize, "%upt", draft.readerFontPointSize);
+      std::snprintf(buffer, bufferSize, tr(STR_POINT_SIZE_COMPACT_FMT),
+                    static_cast<unsigned>(draft.readerFontPointSize));
       return buffer;
     case RowId::Orientation: {
       return I18N.get(readerOrientationLabel(draft.orientation));
@@ -2183,10 +2184,11 @@ const char* EpubReaderTouchMenuActivity::rowValue(const RowId row, char* buffer,
       return hasDictionaryFontOverride ? dictionaryFontFamilyName : tr(STR_DICT_USE_GLOBAL);
     case RowId::DictionaryFontSize:
       if (!hasDictionaryFontOverride || dictionaryFontPointSize == 0) return tr(STR_DICT_USE_GLOBAL);
-      std::snprintf(buffer, bufferSize, "%upt", dictionaryFontPointSize);
+      std::snprintf(buffer, bufferSize, tr(STR_POINT_SIZE_COMPACT_FMT), static_cast<unsigned>(dictionaryFontPointSize));
       return buffer;
     case RowId::AutoPageTurn:
-      LocaleFormat::formatSeconds(autoPageTurnIntervalSeconds, buffer, bufferSize);
+      std::snprintf(buffer, bufferSize, tr(STR_DURATION_SEC_SHORT_FMT),
+                    static_cast<unsigned long>(autoPageTurnIntervalSeconds));
       return buffer;
     default:
       return nullptr;

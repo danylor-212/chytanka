@@ -4,6 +4,7 @@
 #include <GfxRenderer.h>
 #include <HalClock.h>
 #include <I18n.h>
+#include <Utf8.h>
 
 #include <algorithm>
 #include <array>
@@ -361,6 +362,7 @@ void drawPerBookStatsCard(GfxRenderer& renderer, const int x, const int y, const
   char dateBuf[24];
   formatReadingStatsShortDate(stats.startDate, dateBuf, sizeof(dateBuf));
   snprintf(startedLabel, sizeof(startedLabel), "%s %s", tr(STR_STATS_STARTED), dateBuf);
+  utf8TrimIncompleteTail(startedLabel);
   const int startedY = y + layout.topCardTitleH + rowH * 2;
   TouchRegistry::getInstance().add(Rect(x, startedY, halfW, rowH), BookStatsTouchTarget::StartedDaysStat,
                                    TouchRegistry::Item);
@@ -673,7 +675,11 @@ void renderEditBookDatesPage(GfxRenderer& renderer, const MappedInputManager* ma
   const int sectionGap = 104;
   const int row1Y = cardY + 66;
   const int row2Y = row1Y + sectionGap;
-  const int monthW = 52;
+  // Fits the widest abbreviated month name of the UI language.
+  int monthW = 52;
+  for (uint8_t month = 1; month <= 12; ++month) {
+    monthW = std::max(monthW, renderer.getTextWidth(UI_12_FONT_ID, LocaleFormat::monthShortName(month)) + 2);
+  }
   const int dayW = 46;
   const int yearW = 68;
   const int gap = 14;
@@ -690,7 +696,7 @@ void renderEditBookDatesPage(GfxRenderer& renderer, const MappedInputManager* ma
 #endif
   const int fieldStartX = cardX + (std::max(totalFieldW, fieldAreaW) - totalFieldW) / 2;
 
-  char monthBuf[8];
+  char monthBuf[24];
   char dayBuf[8];
   char yearBuf[8];
 

@@ -6,7 +6,9 @@
 #include <map>
 #include <string>
 
+#include "util/DateTextFormat.h"
 #include "util/DurationFormat.h"
+#include "util/NumberFormat.h"
 
 namespace {
 
@@ -44,30 +46,27 @@ struct Language {
     return fallback.at(key).c_str();
   }
 
-  // Mirrors LocaleFormat::durationPatterns().
-  DurationPatterns longPatterns() const {
-    return {get("STR_STATS_LESS_THAN_MIN"), get("STR_DURATION_MIN_FMT"), get("STR_DURATION_H_FMT"),
-            get("STR_DURATION_H_MIN_FMT"), true};
+  // Built from the same key table LocaleFormat uses (DURATION_STYLE_KEYS).
+  DurationPatterns patterns(const DurationStyle style) const {
+    switch (style) {
+#define TEST_STYLE_CASE(styleName, lessThanMinute, minutes, hours, hoursMinutes, keepZeroMinutes) \
+  case DurationStyle::styleName:                                                                  \
+    return {get(#lessThanMinute), get(#minutes), get(#hours), get(#hoursMinutes), keepZeroMinutes};
+      DURATION_STYLE_KEYS(TEST_STYLE_CASE)
+#undef TEST_STYLE_CASE
+    }
+    return patterns(DurationStyle::Long);
   }
 
-  DurationPatterns compactPatterns() const {
-    return {get("STR_DURATION_LESS_THAN_MIN_SHORT"), get("STR_DURATION_MIN_SHORT_FMT"), get("STR_DURATION_H_FMT"),
-            get("STR_DURATION_H_MIN_SHORT_FMT"), false};
-  }
-
-  DurationPatterns estimatePatterns() const {
-    return {get("STR_STATS_LESS_THAN_MIN"), get("STR_DURATION_MIN_FMT"), get("STR_DURATION_H_FMT"),
-            get("STR_DURATION_H_MIN_SHORT_FMT"), false};
-  }
-
-  DurationPatterns carouselPatterns() const {
-    return {get("STR_STATS_LESS_THAN_MIN"), get("STR_DURATION_MIN_SHORT_FMT"), get("STR_DURATION_H_FMT"),
-            get("STR_DURATION_H_MIN_SHORT_FMT"), true};
-  }
+  DurationPatterns longPatterns() const { return patterns(DurationStyle::Long); }
+  DurationPatterns compactPatterns() const { return patterns(DurationStyle::Compact); }
+  DurationPatterns estimatePatterns() const { return patterns(DurationStyle::Estimate); }
+  DurationPatterns carouselPatterns() const { return patterns(DurationStyle::Carousel); }
 
   SecondsPatterns secondsPatterns() const {
-    return {get("STR_DURATION_SEC_SHORT_FMT"), get("STR_DURATION_MIN_SHORT_FMT"),
-            get("STR_DURATION_MIN_SEC_SHORT_FMT")};
+#define TEST_SECONDS(seconds, minutes, minutesSeconds) return {get(#seconds), get(#minutes), get(#minutesSeconds)};
+    SECONDS_STYLE_KEYS(TEST_SECONDS)
+#undef TEST_SECONDS
   }
 };
 
@@ -213,6 +212,12 @@ TEST(DurationFormat, DecimalSeparator) {
   EXPECT_STREQ(buf, "1,5");
   applyDecimalSeparator(buf, ".");
   EXPECT_STREQ(buf, "1,5");
+  char sentence[48] = "Page 5, 12.34% overall. Wait...";
+  applyDecimalSeparator(sentence, ",");
+  EXPECT_STREQ(sentence, "Page 5, 12,34% overall. Wait...");
+  char trailing[16] = "Ch. 1.";
+  applyDecimalSeparator(trailing, ",");
+  EXPECT_STREQ(trailing, "Ch. 1.");  // no digit after the '.', so not a decimal point
   char multi[16] = "2.25";
   applyDecimalSeparator(multi, "\xD9\xAB");  // multi-byte separators are left alone
   EXPECT_STREQ(multi, "2.25");
@@ -234,4 +239,97 @@ TEST(DurationFormat, TranslationsKeepPlaceholders) {
     EXPECT_EQ(count(en), count(uk)) << key;
     EXPECT_EQ(std::count(en.begin(), en.end(), '%'), std::count(uk.begin(), uk.end(), '%')) << key;
   }
+}
+
+std::string formatDate(const Language& lang, const char* patternKey, const unsigned day, const unsigned year) {
+  char buf[48];
+  formatDatePattern(lang.get(patternKey), {day, year, lang.get("STR_MONTH_DEC_SHORT"), lang.get("STR_MONTH_DEC_FULL")},
+                    buf, sizeof(buf));
+  return buf;
+}
+
+TEST(DateTextFormat, ShortDateFollowsLanguageOrder) {
+  EXPECT_EQ(formatDate(english(), "STR_SHORT_DATE_PATTERN", 31, 0), "Dec 31");
+  EXPECT_EQ(formatDate(ukrainian(), "STR_SHORT_DATE_PATTERN", 31, 0), "31 груд.");
+}
+
+TEST(DateTextFormat, EnglishLongDatesMatchTheHal) {
+  // HalClock::formatDate: "%s %02u, %u", "%02u %s %u", "%s %02u", "%02u %s".
+  EXPECT_EQ(formatDate(english(), "STR_DATE_LONG_MDY_PATTERN", 5, 2026), "Dec 05, 2026");
+  EXPECT_EQ(formatDate(english(), "STR_DATE_LONG_DMY_PATTERN", 5, 2026), "05 Dec 2026");
+  EXPECT_EQ(formatDate(english(), "STR_DATE_LONG_MD_PATTERN", 5, 2026), "December 05");
+  EXPECT_EQ(formatDate(english(), "STR_DATE_LONG_DM_PATTERN", 5, 2026), "05 December");
+}
+
+TEST(DateTextFormat, UkrainianLongDatesPutTheDayFirst) {
+  EXPECT_EQ(formatDate(ukrainian(), "STR_DATE_LONG_MDY_PATTERN", 5, 2026), "5 груд. 2026");
+  EXPECT_EQ(formatDate(ukrainian(), "STR_DATE_LONG_MD_PATTERN", 31, 2026), "31 грудня");
+}
+
+TEST(DateTextFormat, ShortDateTruncatesSafely) {
+  char buf[4];
+  formatDatePattern("{d} {m}", {31, 0, "Dec", "December"}, buf, sizeof(buf));
+  EXPECT_STREQ(buf, "31 ");
+}
+
+TEST(DateTextFormat, MeridiemIsReplaced) {
+  char buf[16] = "9:05 PM";
+  replaceMeridiem(buf, sizeof(buf), ukrainian().get("STR_AM"), ukrainian().get("STR_PM"));
+  EXPECT_STREQ(buf, "9:05 пп");
+  char am[16] = "12:30 AM";
+  replaceMeridiem(am, sizeof(am), "дп", "пп");
+  EXPECT_STREQ(am, "12:30 дп");
+  char plain[16] = "21:05";
+  replaceMeridiem(plain, sizeof(plain), "дп", "пп");
+  EXPECT_STREQ(plain, "21:05");
+}
+
+TEST(DateTextFormat, CyrillicMonthCutAtCharacterBoundary) {
+  // "31 грудня" needs 16 bytes; 11 bytes of room end halfway through "н".
+  char buf[12];
+  formatDatePattern("{d} {M}", {31, 0, "груд.", "грудня"}, buf, sizeof(buf));
+  EXPECT_STREQ(buf, "31 груд");
+}
+
+TEST(DateTextFormat, TruncatedLabelDropsHalfCharacter) {
+  // 9 bytes of room end halfway through the fifth letter of "Почато".
+  const std::string started = ukrainian().get("STR_STATS_STARTED");
+  ASSERT_EQ(started, "Почато");
+  char label[10];
+  snprintf(label, sizeof(label), "%s %s", started.c_str(), std::string("31").c_str());
+  utf8TrimIncompleteTail(label);
+  EXPECT_STREQ(label, "Поча");
+}
+
+TEST(DurationFormat, NarrowSpaceIsNotSplitByTruncation) {
+  // "12\u202Fгод" is 2 + 3 + 6 bytes; cutting inside U+202F must drop it whole.
+  char buf[5];
+  formatDurationWith(ukrainian().longPatterns(), 12 * 3600, DurationRounding::Floor, true, buf, sizeof(buf));
+  utf8TrimIncompleteTail(buf);
+  EXPECT_STREQ(buf, "12");
+}
+
+TEST(Utf8TrimIncompleteTail, FourByteSequences) {
+  char cut[] = "ab\xF0\x9F\x98";  // U+1F600 missing its last byte
+  utf8TrimIncompleteTail(cut);
+  EXPECT_STREQ(cut, "ab");
+  char whole[] = "ab\xF0\x9F\x98\x80";
+  utf8TrimIncompleteTail(whole);
+  EXPECT_STREQ(whole, "ab\xF0\x9F\x98\x80");
+}
+
+TEST(Utf8TrimIncompleteTail, InvalidInputIsHandled) {
+  utf8TrimIncompleteTail(nullptr);
+  char empty[] = "";
+  utf8TrimIncompleteTail(empty);
+  EXPECT_STREQ(empty, "");
+  char lone[] = "\x80";  // a continuation byte with no lead byte
+  utf8TrimIncompleteTail(lone);
+  EXPECT_STREQ(lone, "");
+  char invalidLead[] = "a\xFF";  // not a UTF-8 lead byte: left as is, nothing to complete
+  utf8TrimIncompleteTail(invalidLead);
+  EXPECT_STREQ(invalidLead, "a\xFF");
+  char ascii[] = "plain";
+  utf8TrimIncompleteTail(ascii);
+  EXPECT_STREQ(ascii, "plain");
 }

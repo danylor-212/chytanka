@@ -38,6 +38,11 @@ std::string utf8CleanLookupWord(const std::string& text);
 // incomplete trailing bytes are excluded.
 int utf8SafeTruncateBuffer(const char* buf, int len);
 
+// Drops an incomplete UTF-8 sequence from the end of a NUL-terminated buffer,
+// as left behind when snprintf truncates in the middle of a multi-byte
+// character (for example a Cyrillic word in a fixed-size label buffer).
+void utf8TrimIncompleteTail(char* buf);
+
 // Returns true for CJK characters that allow line breaks on either side without hyphenation.
 // Covers CJK Unified Ideographs, Hiragana, Katakana, Hangul Syllables, CJK punctuation,
 // and fullwidth forms — the ranges where word boundaries are implicit per character.

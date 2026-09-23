@@ -6,8 +6,6 @@
 #include "util/LocaleFormat.h"
 
 namespace {
-constexpr const char* MONTH_NAMES[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 bool isBitSet(const std::array<uint8_t, READING_HISTORY_BYTES>& bits, const size_t bitIndex) {
   if (bitIndex >= READING_HISTORY_DAYS) {
@@ -293,7 +291,7 @@ void formatReadingStatsShortDate(const ReadingStatsDate& date, char* buf, const 
     snprintf(buf, len, "-");
     return;
   }
-  snprintf(buf, len, "%s %u", MONTH_NAMES[date.month - 1], static_cast<unsigned>(date.day));
+  LocaleFormat::formatShortDate(date.day, date.month, buf, len);
 }
 
 void formatReadingStatsMonthToken(const ReadingStatsDate& date, char* buf, const size_t len) {
@@ -304,7 +302,7 @@ void formatReadingStatsMonthToken(const ReadingStatsDate& date, char* buf, const
     snprintf(buf, len, "-");
     return;
   }
-  snprintf(buf, len, "%s", MONTH_NAMES[date.month - 1]);
+  snprintf(buf, len, "%s", LocaleFormat::monthShortName(date.month));
 }
 
 void formatCompactReadingDuration(const uint32_t seconds, char* buf, const size_t len) {

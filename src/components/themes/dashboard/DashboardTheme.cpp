@@ -8,6 +8,7 @@
 #include <HalGPIO.h>
 #include <HalStorage.h>
 #include <I18n.h>
+#include <Utf8.h>
 
 #include <algorithm>
 #include <cmath>
@@ -328,6 +329,7 @@ void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, cons
   }
   formatReadingStatsShortDate(bookStats.startDate, startedDate, sizeof(startedDate));
   snprintf(label, sizeof(label), "%s %s", tr(STR_STATS_STARTED), startedDate);
+  utf8TrimIncompleteTail(label);
   drawStatsRow(renderer, rightX, rowY, value, label, maxW, black);
 
   rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);

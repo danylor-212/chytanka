@@ -15,6 +15,7 @@
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/LocaleFormat.h"
 
 void ClockSyncActivity::onEnter() {
   Activity::onEnter();
@@ -79,8 +80,9 @@ void ClockSyncActivity::runSync() {
   SETTINGS.saveToFile();
 
   // Read the freshly synced time back for the user-facing confirmation.
-  char buf[9];
+  char buf[16];
   if (halClock.formatTime(buf, sizeof(buf), SETTINGS.clockUtcOffsetQ, SETTINGS.clockFormat == 1)) {
+    LocaleFormat::localizeMeridiem(buf, sizeof(buf));
     snprintf(syncedTime, sizeof(syncedTime), "%s", buf);
   }
   state = SUCCESS;

@@ -10,6 +10,7 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/InputReleaseGuard.h"
+#include "util/LocaleFormat.h"
 
 namespace {
 
@@ -412,6 +413,7 @@ void NearbyBookPositionSyncActivity::renderComparison() const {
   char peerPageStr[64];
   snprintf(peerPageStr, sizeof(peerPageStr), tr(STR_PAGE_OVERALL_FORMAT), peerCrossPoint_.pageNumber + 1,
            qToPercentage(peerPosition_.percentageQ) * 100.0f);
+  LocaleFormat::localizeDecimalSeparator(peerPageStr);
   renderer.drawText(UI_10_FONT_ID, screen.x + metrics.contentSidePadding, top + 90, peerPageStr);
   if (!peerName_.empty()) {
     char deviceStr[64];
@@ -426,6 +428,7 @@ void NearbyBookPositionSyncActivity::renderComparison() const {
   char localPageStr[64];
   snprintf(localPageStr, sizeof(localPageStr), tr(STR_PAGE_TOTAL_OVERALL_FORMAT), currentPage_ + 1, totalPagesInSpine_,
            qToPercentage(localPosition_.percentageQ) * 100.0f);
+  LocaleFormat::localizeDecimalSeparator(localPageStr);
   renderer.drawText(UI_10_FONT_ID, screen.x + metrics.contentSidePadding, top + 200, localPageStr);
 
   const int optionY = top + 230;
@@ -1401,6 +1404,7 @@ void NearbyBookPositionSyncActivity::renderComparison() const {
   char peerPageStr[64];
   snprintf(peerPageStr, sizeof(peerPageStr), tr(STR_PAGE_OVERALL_FORMAT), peerCrossPoint_.pageNumber + 1,
            qToPercentage(peerPosition_.percentageQ) * 100.0f);
+  LocaleFormat::localizeDecimalSeparator(peerPageStr);
   renderer.drawText(UI_10_FONT_ID, screen.x + metrics.contentSidePadding, top + 90, peerPageStr);
   if (!peerName_.empty()) {
     char deviceStr[64];
@@ -1415,6 +1419,7 @@ void NearbyBookPositionSyncActivity::renderComparison() const {
   char localPageStr[64];
   snprintf(localPageStr, sizeof(localPageStr), tr(STR_PAGE_TOTAL_OVERALL_FORMAT), currentPage_ + 1, totalPagesInSpine_,
            qToPercentage(localPosition_.percentageQ) * 100.0f);
+  LocaleFormat::localizeDecimalSeparator(localPageStr);
   renderer.drawText(UI_10_FONT_ID, screen.x + metrics.contentSidePadding, top + 200, localPageStr);
 
   const int optionY = top + 230;

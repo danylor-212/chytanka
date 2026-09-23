@@ -32,6 +32,7 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "network/WifiUtils.h"
+#include "util/LocaleFormat.h"
 
 namespace {
 constexpr int RESULT_LOCAL_PAGE_Y_OFFSET = 200;
@@ -709,6 +710,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     char remotePageStr[64];
     snprintf(remotePageStr, sizeof(remotePageStr), tr(STR_PAGE_OVERALL_FORMAT), remotePosition.pageNumber + 1,
              remoteProgress.percentage * 100);
+    LocaleFormat::localizeDecimalSeparator(remotePageStr);
     renderer.drawText(UI_10_FONT_ID, screen.x + metrics.contentSidePadding, top + 90, remotePageStr);
 
     if (!remoteProgress.device.empty()) {
@@ -725,6 +727,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     char localPageStr[64];
     snprintf(localPageStr, sizeof(localPageStr), tr(STR_PAGE_TOTAL_OVERALL_FORMAT), currentPage + 1, totalPagesInSpine,
              localProgress.percentage * 100);
+    LocaleFormat::localizeDecimalSeparator(localPageStr);
     renderer.drawText(UI_10_FONT_ID, screen.x + metrics.contentSidePadding, top + RESULT_LOCAL_PAGE_Y_OFFSET,
                       localPageStr);
 

@@ -8,6 +8,7 @@
 #include <SdCardFontRegistry.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <iterator>
 #include <string>
@@ -24,7 +25,11 @@
 #include "util/FontFamilyLabel.h"
 #include "util/FrontlightSchedule.h"
 
-inline std::string fontSizePointLabel(const uint8_t pointSize) { return std::to_string(pointSize) + " pt"; }
+inline std::string fontSizePointLabel(const uint8_t pointSize) {
+  char label[24];
+  snprintf(label, sizeof(label), tr(STR_POINT_SIZE_FMT), static_cast<unsigned>(pointSize));
+  return label;
+}
 
 inline void appendBuiltinFontSizeOption(SettingInfo& setting, const CrossPointSettings::FONT_SIZE size) {
   const uint8_t pointSize = CrossPointSettings::getReaderFontPointSize(size);
