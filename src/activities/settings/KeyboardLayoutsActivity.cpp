@@ -28,9 +28,13 @@ void KeyboardLayoutsActivity::onEnter() {
   visibleRows = 1;
   edited = false;
   uiReady = false;
+  rowCount = 0;
   for (uint8_t i = 0; i < keyboard_layouts::COUNT; ++i) {
-    rowItems[i].label = I18N.getLanguageName(keyboard_layouts::ALL[i].language);
-    rowItems[i].actionValue = static_cast<int16_t>(i);
+    if (!keyboard_layouts::isAvailable(i)) continue;
+    rowLayout[rowCount] = i;
+    rowItems[rowCount].label = I18N.getLanguageName(keyboard_layouts::ALL[i].language);
+    rowItems[rowCount].actionValue = static_cast<int16_t>(rowCount);
+    ++rowCount;
   }
   applySharedUiTheme(app, uiTarget);
   app.on(ACTION_ROW, &KeyboardLayoutsActivity::onRowEvent, this);
@@ -53,7 +57,7 @@ bool KeyboardLayoutsActivity::isLocked(const uint8_t index) const {
 }
 
 void KeyboardLayoutsActivity::toggleSelected() {
-  const auto index = static_cast<uint8_t>(selectedIndex);
+  const uint8_t index = rowLayout[selectedIndex];
   if (!isLocked(index)) {
     workingMask = static_cast<uint16_t>(workingMask ^ keyboard_layouts::bitAt(index));
     edited = true;
@@ -64,7 +68,7 @@ void KeyboardLayoutsActivity::toggleSelected() {
 
 void KeyboardLayoutsActivity::onRowEvent(const fui::ActionEvent& event, void* user) {
   auto* self = static_cast<KeyboardLayoutsActivity*>(user);
-  if (event.value < 0 || event.value >= keyboard_layouts::COUNT) return;
+  if (event.value < 0 || event.value >= self->rowCount) return;
   self->selectedIndex = event.value;
   self->toggleSelected();
 }
@@ -91,7 +95,7 @@ void KeyboardLayoutsActivity::loop() {
   const auto swipe = mappedInput.wasSwipe();
   if (swipe == MappedInputManager::SwipeDir::Up || swipe == MappedInputManager::SwipeDir::Down) {
     const int next = scrollListBy(topIndex, swipe == MappedInputManager::SwipeDir::Up ? visibleRows : -visibleRows,
-                                  visibleRows, keyboard_layouts::COUNT);
+                                  visibleRows, rowCount);
     if (next != topIndex) {
       topIndex = next;
       requestUpdate();
@@ -101,17 +105,15 @@ void KeyboardLayoutsActivity::loop() {
 
   const auto move = [this](const int index) {
     selectedIndex = index;
-    topIndex = followListSelection(selectedIndex, topIndex, visibleRows, keyboard_layouts::COUNT);
+    topIndex = followListSelection(selectedIndex, topIndex, visibleRows, rowCount);
     requestUpdate();
   };
-  buttonNavigator.onNextRelease(
-      [this, &move] { move(ButtonNavigator::nextIndex(selectedIndex, keyboard_layouts::COUNT)); });
-  buttonNavigator.onPreviousRelease(
-      [this, &move] { move(ButtonNavigator::previousIndex(selectedIndex, keyboard_layouts::COUNT)); });
+  buttonNavigator.onNextRelease([this, &move] { move(ButtonNavigator::nextIndex(selectedIndex, rowCount)); });
+  buttonNavigator.onPreviousRelease([this, &move] { move(ButtonNavigator::previousIndex(selectedIndex, rowCount)); });
   buttonNavigator.onNextContinuous(
-      [this, &move] { move(ButtonNavigator::nextPageIndex(selectedIndex, keyboard_layouts::COUNT, visibleRows)); });
+      [this, &move] { move(ButtonNavigator::nextPageIndex(selectedIndex, rowCount, visibleRows)); });
   buttonNavigator.onPreviousContinuous(
-      [this, &move] { move(ButtonNavigator::previousPageIndex(selectedIndex, keyboard_layouts::COUNT, visibleRows)); });
+      [this, &move] { move(ButtonNavigator::previousPageIndex(selectedIndex, rowCount, visibleRows)); });
 }
 
 void KeyboardLayoutsActivity::listScreen(UiApp::ScreenType& screen, void* user) {
@@ -125,14 +127,16 @@ void KeyboardLayoutsActivity::buildListScreen(UiApp::ScreenType& screen) {
                   static_cast<int16_t>(metrics.buttonHintsHeight), 0});
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
 
-  for (uint8_t i = 0; i < keyboard_layouts::COUNT; ++i) {
-    rowItems[i].value = isLocked(i) ? tr(STR_DEFAULT_VALUE)
-                                    : (workingMask & keyboard_layouts::bitAt(i) ? tr(STR_STATE_ON) : tr(STR_STATE_OFF));
+  for (uint8_t row = 0; row < rowCount; ++row) {
+    const uint8_t i = rowLayout[row];
+    rowItems[row].value = isLocked(i)
+                              ? tr(STR_DEFAULT_VALUE)
+                              : (workingMask & keyboard_layouts::bitAt(i) ? tr(STR_STATE_ON) : tr(STR_STATE_OFF));
   }
 
   fui::ListProps props;
   props.items = rowItems;
-  props.count = keyboard_layouts::COUNT;
+  props.count = rowCount;
   props.selectedIndex = static_cast<int16_t>(selectedIndex);
   props.action = ACTION_ROW;
   props.inputMask = fui::InputTouch;
@@ -140,7 +144,7 @@ void KeyboardLayoutsActivity::buildListScreen(UiApp::ScreenType& screen) {
   props.labelText = screen.theme().bodyText;
   const auto rows = configureUiList(props, screen.theme(), screen.body());
   visibleRows = rows > 0 ? rows : 1;
-  topIndex = scrollListBy(topIndex, 0, visibleRows, keyboard_layouts::COUNT);
+  topIndex = scrollListBy(topIndex, 0, visibleRows, rowCount);
   props.topIndex = static_cast<uint16_t>(topIndex);
   screen.list(props);
 }

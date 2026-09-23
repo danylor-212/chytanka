@@ -32,6 +32,9 @@ class KeyboardLayoutsActivity final : public Activity {
   int visibleRows = 1;
   int topIndex = 0;
   freeink::ui::ListItem rowItems[keyboard_layouts::COUNT]{};
+  // Layout table index shown on each row (only layouts this build offers).
+  uint8_t rowLayout[keyboard_layouts::COUNT]{};
+  uint8_t rowCount = 0;
 
   bool isLocked(uint8_t index) const;
   void toggleSelected();

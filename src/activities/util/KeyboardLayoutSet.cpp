@@ -29,7 +29,7 @@ uint16_t layoutBit(const freeink::ui::KeyboardLayoutId id) {
 }  // namespace
 
 uint16_t enabled() {
-  const uint16_t configured = static_cast<uint16_t>(SETTINGS.keyboardLayouts & ALL_BITS);
+  const uint16_t configured = static_cast<uint16_t>(SETTINGS.keyboardLayouts & ALL_BITS & AVAILABLE_BITS);
   if (configured != 0) {
     // URL and credential fields still need a Latin layout even when a settings
     // file was hand-edited to contain only Cyrillic or Hebrew.
@@ -38,8 +38,9 @@ uint16_t enabled() {
                : static_cast<uint16_t>(configured | layoutBit(freeink::ui::KeyboardLayoutId::QwertyEn));
   }
 
-  return static_cast<uint16_t>(layoutBit(forLanguage(I18N.getLanguage())) |
-                               layoutBit(freeink::ui::KeyboardLayoutId::QwertyEn));
+  return static_cast<uint16_t>(
+      (layoutBit(forLanguage(I18N.getLanguage())) | layoutBit(freeink::ui::KeyboardLayoutId::QwertyEn)) &
+      AVAILABLE_BITS);
 }
 
 freeink::ui::KeyboardLayoutId startingLayout() {
