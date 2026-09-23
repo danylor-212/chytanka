@@ -8,9 +8,15 @@
 #include "fontIds.h"
 #include "images/ChytankaLogo120.h"
 
+#if defined(CHYTANKA) && !defined(CROSSINK_OTA_RELEASE_URL)
+#error "Chytanka builds must override CROSSINK_OTA_RELEASE_URL"
+#endif
+
 namespace chytanka {
 
 namespace {
+
+static_assert(sizeof(ChytankaLogo120) == 120 * 120 / 8, "ChytankaLogo120 must be 120x120 1-bit");
 
 // The brand name is the same in every UI language. The credit line is kept
 // out of the shared translation files so CrossInk rebases stay conflict-free;
