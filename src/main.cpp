@@ -115,6 +115,7 @@ inline esp_sleep_wakeup_cause_t esp_sleep_get_wakeup_cause() { return ESP_SLEEP_
 #endif
 #include "images/LoadingIcon.h"
 #include "util/BatteryDiagnosticLog.h"
+#include "util/BookCacheUtils.h"
 #include "util/ButtonNavigator.h"
 #include "util/ButtonShortcutController.h"
 #include "util/Dictionary.h"
@@ -1333,6 +1334,7 @@ void setup() {
   SETTINGS.loadFromFile();
   Storage.installDateTimeCallback(&SETTINGS.clockUtcOffsetQ);
   APP_STATE.loadFromFile();
+  purgeStaleCoverThumbnails();
   mirrorWakeShortPressToNvs();
   // Needs SETTINGS for the clock's UTC offset, so it cannot run any earlier.
   BatteryDiagnosticLog::record(BatteryDiagnosticLog::Event::Wake, BoardConfig::ACTIVE.name,

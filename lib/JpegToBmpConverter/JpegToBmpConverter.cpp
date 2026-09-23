@@ -236,7 +236,7 @@ struct BmpConvertCtx {
 
   std::unique_ptr<AtkinsonDitherer> atkinsonDitherer;
   std::unique_ptr<FloydSteinbergDitherer> fsDitherer;
-  std::unique_ptr<Atkinson1BitDitherer> atkinson1BitDitherer;
+  std::unique_ptr<FloydSteinberg1BitDitherer> oneBitDitherer;
 
   bool error;
 };
@@ -337,11 +337,11 @@ static void writeOutputRow(BmpConvertCtx* ctx, const uint8_t* srcRow, int outY) 
     }
   } else if (ctx->oneBit) {
     for (int x = 0; x < ctx->outWidth; x++) {
-      const uint8_t bit = ctx->atkinson1BitDitherer ? ctx->atkinson1BitDitherer->processPixel(srcRow[x], x)
-                                                    : quantize1bit(srcRow[x], x, outY);
+      const uint8_t bit =
+          ctx->oneBitDitherer ? ctx->oneBitDitherer->processPixel(srcRow[x], x) : quantize1bit(srcRow[x], x, outY);
       ctx->bmpRow[x / 8] |= (bit << (7 - (x % 8)));
     }
-    if (ctx->atkinson1BitDitherer) ctx->atkinson1BitDitherer->nextRow();
+    if (ctx->oneBitDitherer) ctx->oneBitDitherer->nextRow();
   } else {
     for (int x = 0; x < ctx->outWidth; x++) {
       const uint8_t gray = adjustPixel(srcRow[x]);
@@ -447,11 +447,11 @@ static void flushScaledRow(BmpConvertCtx* ctx) {
   } else if (ctx->oneBit) {
     for (int x = 0; x < ctx->outWidth; x++) {
       const uint8_t gray = (ctx->rowCount[x] > 0) ? (ctx->rowAccum[x] / ctx->rowCount[x]) : 0;
-      const uint8_t bit = ctx->atkinson1BitDitherer ? ctx->atkinson1BitDitherer->processPixel(gray, x)
-                                                    : quantize1bit(gray, x, ctx->currentOutY);
+      const uint8_t bit =
+          ctx->oneBitDitherer ? ctx->oneBitDitherer->processPixel(gray, x) : quantize1bit(gray, x, ctx->currentOutY);
       ctx->bmpRow[x / 8] |= (bit << (7 - (x % 8)));
     }
-    if (ctx->atkinson1BitDitherer) ctx->atkinson1BitDitherer->nextRow();
+    if (ctx->oneBitDitherer) ctx->oneBitDitherer->nextRow();
   } else {
     for (int x = 0; x < ctx->outWidth; x++) {
       const uint8_t gray = adjustPixel((ctx->rowCount[x] > 0) ? (ctx->rowAccum[x] / ctx->rowCount[x]) : 0);
@@ -735,9 +735,9 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(FsFile& jpegFile, Print& bm
   }
 
   if (oneBit) {
-    ctx.atkinson1BitDitherer = makeUniqueNoThrow<Atkinson1BitDitherer>(outWidth);
-    if (!ctx.atkinson1BitDitherer || !ctx.atkinson1BitDitherer->isValid()) {
-      LOG_ERR("JPG", "OOM: Atkinson1BitDitherer");
+    ctx.oneBitDitherer = makeUniqueNoThrow<FloydSteinberg1BitDitherer>(outWidth);
+    if (!ctx.oneBitDitherer || !ctx.oneBitDitherer->isValid()) {
+      LOG_ERR("JPG", "OOM: FloydSteinberg1BitDitherer");
       return false;
     }
   } else if (!USE_8BIT_OUTPUT) {

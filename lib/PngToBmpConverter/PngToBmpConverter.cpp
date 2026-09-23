@@ -691,12 +691,12 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
   // Create ditherers (same as JpegToBmpConverter)
   std::unique_ptr<AtkinsonDitherer> atkinsonDitherer;
   std::unique_ptr<FloydSteinbergDitherer> fsDitherer;
-  std::unique_ptr<Atkinson1BitDitherer> atkinson1BitDitherer;
+  std::unique_ptr<FloydSteinberg1BitDitherer> oneBitDitherer;
 
   if (oneBit) {
-    atkinson1BitDitherer = makeUniqueNoThrow<Atkinson1BitDitherer>(outWidth);
-    if (!atkinson1BitDitherer || !atkinson1BitDitherer->isValid()) {
-      LOG_ERR("PNG", "OOM: Atkinson1BitDitherer or row buffers");
+    oneBitDitherer = makeUniqueNoThrow<FloydSteinberg1BitDitherer>(outWidth);
+    if (!oneBitDitherer || !oneBitDitherer->isValid()) {
+      LOG_ERR("PNG", "OOM: FloydSteinberg1BitDitherer or row buffers");
       return false;
     }
   } else if (!USE_8BIT_OUTPUT) {
@@ -757,12 +757,12 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
       } else if (oneBit) {
         for (int x = 0; x < outWidth; x++) {
           const uint8_t bit =
-              atkinson1BitDitherer ? atkinson1BitDitherer->processPixel(grayRow[x], x) : quantize1bit(grayRow[x], x, y);
+              oneBitDitherer ? oneBitDitherer->processPixel(grayRow[x], x) : quantize1bit(grayRow[x], x, y);
           const int byteIndex = x / 8;
           const int bitOffset = 7 - (x % 8);
           rowBuffer[byteIndex] |= (bit << bitOffset);
         }
-        if (atkinson1BitDitherer) atkinson1BitDitherer->nextRow();
+        if (oneBitDitherer) oneBitDitherer->nextRow();
       } else {
         for (int x = 0; x < outWidth; x++) {
           const uint8_t gray = adjustPixel(grayRow[x]);
@@ -831,12 +831,12 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
           for (int x = 0; x < outWidth; x++) {
             const uint8_t gray = (rowCount[x] > 0) ? (rowAccum[x] / rowCount[x]) : 0;
             const uint8_t bit =
-                atkinson1BitDitherer ? atkinson1BitDitherer->processPixel(gray, x) : quantize1bit(gray, x, currentOutY);
+                oneBitDitherer ? oneBitDitherer->processPixel(gray, x) : quantize1bit(gray, x, currentOutY);
             const int byteIndex = x / 8;
             const int bitOffset = 7 - (x % 8);
             rowBuffer[byteIndex] |= (bit << bitOffset);
           }
-          if (atkinson1BitDitherer) atkinson1BitDitherer->nextRow();
+          if (oneBitDitherer) oneBitDitherer->nextRow();
         } else {
           for (int x = 0; x < outWidth; x++) {
             const uint8_t gray = adjustPixel((rowCount[x] > 0) ? (rowAccum[x] / rowCount[x]) : 0);

@@ -17,3 +17,8 @@ bool clearBookCacheDirectoryPreservingStats(const std::string& cachePath);
 
 // Returns true if the directory name matches a book cache entry.
 bool isBookCacheDirectoryName(const char* name);
+
+// Deletes EPUB cover thumbnails (thumb_*.bmp) cached by a build with an older
+// thumbnail format, once, so they are regenerated with the current pipeline.
+// Cheap no-op after the first run (reads one 4-byte marker file).
+void purgeStaleCoverThumbnails();

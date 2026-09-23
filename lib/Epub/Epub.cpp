@@ -1360,8 +1360,11 @@ bool Epub::generateThumbBmpInternal(int width, int height, const bool adaptiveCo
     int THUMB_TARGET_WIDTH = width;
     int THUMB_TARGET_HEIGHT = height;
     releaseReaderSdFontCachesBeforeCoverDecode(renderer, readerFontId, "thumbnail JPG decode");
+    const unsigned long thumbStart = millis();
     const bool success = JpegToBmpConverter::jpegFileTo1BitBmpStreamWithSize(coverJpg, thumbBmp, THUMB_TARGET_WIDTH,
                                                                              THUMB_TARGET_HEIGHT, adaptiveContain);
+    LOG_DBG("EBP", "Thumb %dx%d from JPG: ok=%d %lu ms (free=%u)", width, height, success ? 1 : 0,
+            millis() - thumbStart, ESP.getFreeHeap());
     // Explicitly close() files before leaving the converter path.
     coverJpg.close();
     thumbBmp.close();
@@ -1390,8 +1393,11 @@ bool Epub::generateThumbBmpInternal(int width, int height, const bool adaptiveCo
     int THUMB_TARGET_WIDTH = width;
     int THUMB_TARGET_HEIGHT = height;
     releaseReaderSdFontCachesBeforeCoverDecode(renderer, readerFontId, "thumbnail PNG decode");
+    const unsigned long thumbStart = millis();
     const bool success = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(coverPng, thumbBmp, THUMB_TARGET_WIDTH,
                                                                            THUMB_TARGET_HEIGHT, adaptiveContain);
+    LOG_DBG("EBP", "Thumb %dx%d from PNG: ok=%d %lu ms (free=%u)", width, height, success ? 1 : 0,
+            millis() - thumbStart, ESP.getFreeHeap());
     // Explicitly close() files before leaving the converter path.
     coverPng.close();
     thumbBmp.close();

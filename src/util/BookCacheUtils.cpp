@@ -351,3 +351,86 @@ bool clearBookCacheDirectoryPreservingStats(const std::string& cachePath) {
   return clearCacheDirectoryPreservingFiles(cachePath, CACHE_CLEAR_USER_STATE_FILES,
                                             std::size(CACHE_CLEAR_USER_STATE_FILES), true, "clear_preserve_");
 }
+
+namespace {
+
+// Bump whenever the EPUB cover thumbnail pipeline (JpegToBmpConverter /
+// PngToBmpConverter 1-bit output) changes, so thumbnails cached by an older
+// build are regenerated instead of being shown forever. Thumbnails are found by
+// existence alone (thumb_*.bmp in epub_<hash>/), so a new build cannot tell an
+// old one apart otherwise.
+//   2: Floyd-Steinberg instead of Atkinson dithering.
+constexpr uint32_t COVER_THUMB_FORMAT_VERSION = 2;
+constexpr char COVER_THUMB_FORMAT_FILE[] = "/.crosspoint/thumb_format.bin";
+
+bool isEpubThumbnailName(const char* name) {
+  constexpr char PREFIX[] = "thumb_";
+  constexpr char SUFFIX[] = ".bmp";
+  const size_t len = strlen(name);
+  return len > std::size(PREFIX) - 1 + std::size(SUFFIX) - 1 && strncmp(name, PREFIX, std::size(PREFIX) - 1) == 0 &&
+         strcmp(name + len - (std::size(SUFFIX) - 1), SUFFIX) == 0;
+}
+
+void removeThumbnailsIn(const std::string& cachePath) {
+  FsFile dir = Storage.open(cachePath.c_str());
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    return;
+  }
+  std::vector<std::string> stale;
+  char name[96];
+  for (FsFile file = dir.openNextFile(); file; file = dir.openNextFile()) {
+    const bool isDirectory = file.isDirectory();
+    const size_t nameLen = file.getName(name, sizeof(name));
+    file.close();
+    if (!isDirectory && nameLen > 0 && isEpubThumbnailName(name)) stale.emplace_back(name);
+  }
+  dir.close();
+  for (const auto& file : stale) {
+    const std::string path = cachePath + "/" + file;
+    if (!Storage.remove(path.c_str())) LOG_ERR("BookCache", "Failed to remove stale thumbnail %s", path.c_str());
+  }
+}
+
+}  // namespace
+
+void purgeStaleCoverThumbnails() {
+  uint32_t storedVersion = 0;
+  FsFile marker;
+  if (Storage.openFileForRead("BookCache", COVER_THUMB_FORMAT_FILE, marker)) {
+    if (marker.read(reinterpret_cast<uint8_t*>(&storedVersion), sizeof(storedVersion)) != sizeof(storedVersion)) {
+      storedVersion = 0;
+    }
+    marker.close();
+  }
+  if (storedVersion == COVER_THUMB_FORMAT_VERSION) return;
+
+  const unsigned long start = millis();
+  std::vector<std::string> epubCaches;
+  FsFile root = Storage.open("/.crosspoint");
+  if (root && root.isDirectory()) {
+    char name[96];
+    for (FsFile file = root.openNextFile(); file; file = root.openNextFile()) {
+      const bool isDirectory = file.isDirectory();
+      const size_t nameLen = file.getName(name, sizeof(name));
+      file.close();
+      if (isDirectory && nameLen > 0 && strncmp(name, "epub_", 5) == 0) epubCaches.emplace_back(name);
+    }
+  }
+  if (root) root.close();
+  for (const auto& cache : epubCaches) {
+    removeThumbnailsIn(std::string("/.crosspoint/") + cache);
+  }
+
+  FsFile out;
+  if (Storage.openFileForWrite("BookCache", COVER_THUMB_FORMAT_FILE, out)) {
+    const uint32_t version = COVER_THUMB_FORMAT_VERSION;
+    out.write(reinterpret_cast<const uint8_t*>(&version), sizeof(version));
+    out.close();
+  } else {
+    LOG_ERR("BookCache", "Failed to write %s", COVER_THUMB_FORMAT_FILE);
+  }
+  LOG_INF("BookCache", "Cover thumbnails reset to format %u (%u book caches, %lu ms)",
+          static_cast<unsigned>(COVER_THUMB_FORMAT_VERSION), static_cast<unsigned>(epubCaches.size()),
+          millis() - start);
+}
