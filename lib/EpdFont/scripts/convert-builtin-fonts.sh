@@ -40,9 +40,17 @@ MUSIC_SYMBOL_INTERVALS=(
   --additional-intervals 0x2669,0x266F
 )
 
+# Letterlike symbols outside the default set that Cyrillic-language books use.
+# The primary faces (Bitter, Lexend Deca, Inter) carry them natively.
+# 0x2116: Numero sign (№), e.g. "№ 5" on Ukrainian imprint pages
+EXTRA_TEXT_INTERVALS=(
+  --additional-intervals 0x2116,0x2116
+)
+
 READING_FALLBACK_INTERVALS=(
   "${COMMON_FALLBACK_INTERVALS[@]}"
   "${MUSIC_SYMBOL_INTERVALS[@]}"
+  "${EXTRA_TEXT_INTERVALS[@]}"
 )
 
 # CJK for PHM
@@ -215,7 +223,7 @@ for size in ${UI_FONT_SIZES[@]}; do
     arabic_path="../builtinFonts/source/NotoSansArabic/NotoSansArabic-${style}.ttf"
     output_path="../builtinFonts/${font_name}.h"
     python fontconvert.py $font_name $size $font_path $hebrew_path $arabic_path \
-      --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" > $output_path
+      --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" "${EXTRA_TEXT_INTERVALS[@]}" > $output_path
     echo "Generated $output_path"
   done
 done
@@ -226,7 +234,7 @@ python fontconvert.py inter_8_regular 8 \
   ../builtinFonts/source/Inter/Inter-Regular.ttf \
   ../builtinFonts/source/IBMPlexSansHebrew/IBMPlexSansHebrew-Regular.ttf \
   ../builtinFonts/source/NotoSansArabic/NotoSansArabic-Regular.ttf \
-  --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" > ../builtinFonts/inter_8_regular.h
+  --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" "${EXTRA_TEXT_INTERVALS[@]}" > ../builtinFonts/inter_8_regular.h
 
 echo ""
 echo "Running compression verification..."
