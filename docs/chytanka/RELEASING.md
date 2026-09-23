@@ -227,6 +227,34 @@ files, so stock CrossInk keeps «Темний» / «Світлий».
 - On an X3 (528x792 portrait) the 480x800 card is centred unscaled: 24 px
   white side margins, 4 blank rows clipped top and bottom.
 
+## Fonts, keyboards and wake screen (`CHYTANKA`)
+
+- **Reader fonts.** Only families with full Latin and full Ukrainian Cyrillic
+  (А–Я а–я Ґґ Єє Іі Її ’ « ») ship. Lexend Deca (partial Cyrillic) is not
+  compiled in: `CrossPointSettings::PICKER_BUILTIN_FONTS` lists Bitter only and
+  `main.cpp` skips the Lexend `EpdFont` objects, so the linker drops its
+  headers (~583 KB). Value 0 stays reserved in the `FONT_FAMILY` enum, so saved
+  settings and per-book caches load; `availableBuiltinFont()` maps it to
+  Bitter everywhere (settings load, per-book settings, font ID lookup).
+- **SD font catalogue.** The manifest is CrossInk's remote `fonts.json`, so
+  `FontDownloadActivity.cpp` hides families client-side
+  (`chytankaHidesFontFamily()`): a list checked against each family's source
+  TTF cmap, plus "no Cyrillic in the manifest languages" for families added
+  later. Re-check the list when the catalogue changes (`sd-fonts.yaml`).
+- **Keyboards.** `keyboard_layouts::AVAILABLE_BITS` keeps English and
+  Ukrainian. Persisted bit positions are unchanged (bit 0 English, bit 5
+  Ukrainian); other bits in a saved `keyboardLayouts` are ignored. The layout
+  tables themselves live in `freeink-sdk` (FreeInkUI) and are still linked;
+  dropping them (~10.6 KB) needs an SDK-side switch.
+- **Wake screen.** On a power-button wake CrossInk skips the boot splash and
+  goes from the sleep image straight to Home/the reader (the driver turns the
+  first paint into a HALF refresh; with the sunlight fading fix it first
+  clears the panel white). Under `CHYTANKA` the splashless wake paints the
+  Chytanka boot screen with that HALF refresh instead, and Home/the reader land
+  with a FAST refresh over it (`main.cpp`, `BootResume::SplashlessWake`). Quick
+  Resume frames keep their own path. The log line
+  `Wake: Chytanka boot screen painted in N ms` times it on a device.
+
 ## Rebase checklist
 
 After every rebase onto a new upstream CrossInk tag:
@@ -254,11 +282,12 @@ After every rebase onto a new upstream CrossInk tag:
    `#ifdef CHYTANKA_DEFAULT_LANGUAGE`) still sits where it did relative to
    `SETTINGS.loadFromFile()` — it must run strictly before that call for the
    "saved language wins" behavior described above to hold. The same applies
-   to the `#ifdef CHYTANKA` reader defaults right below it (Bitter +
-   hyphenation on a fresh device): confirm `fromJson()` still falls back to
-   the in-memory value for `hyphenationEnabled`, that `toJson()` still writes
-   `fontFamily` (its loader falls back to 0 = Lexend Deca when the key is
-   missing), and that the `FONT_FAMILY` enum still has `BITTER`.
+   to the `#ifdef CHYTANKA` hyphenation default right below it: confirm
+   `fromJson()` still falls back to the in-memory value for
+   `hyphenationEnabled`. The Bitter default comes from
+   `CrossPointSettings::DEFAULT_FONT_FAMILY` (see "Fonts, keyboards and wake
+   screen" above); check that every place that reads `fontFamily` still goes
+   through `availableBuiltinFont()` / `builtinFontPickerIndex()`.
 6. `CROSSINK_SHOW_SLEEP_BUILD_INFO` (used by `[env:debug]`, never needed in
    `[env:ua]`): stock CrossInk draws that line at `H/2 + 118`, which would
    land on Chytanka's larger brand block (240x240 logo lifted 40 px above
