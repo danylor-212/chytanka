@@ -6941,7 +6941,17 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
 #endif
   };
 
+#ifdef CHYTANKA
+  // Text that no grayscale pass will refine is drawn with the sharp B/W glyph
+  // threshold. The anti-aliased path keeps the full black base, because the
+  // grayscale overlay can only lighten black pixels.
+  const bool sharpBwText = !needsTextGrayscale;
+#endif
+
   const auto composePageBuffer = [&]() {
+#ifdef CHYTANKA
+    GfxRenderer::SharpBwTextScope sharpText(renderer, sharpBwText);
+#endif
     if (deferImageLoading) {
       page->renderWithImagePlaceholders(renderer, fontId, orientedMarginLeft, orientedMarginTop, foregroundBlack,
                                         /*renderCachedImages=*/false);
@@ -6960,8 +6970,13 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
     finalizeBufferComposition();
   };
   if (updatePanel && pageHasImagesNeedingDecode) {
-    page->renderWithImagePlaceholders(renderer, fontId, orientedMarginLeft, orientedMarginTop, foregroundBlack);
-    finalizeBufferComposition();
+    {
+#ifdef CHYTANKA
+      GfxRenderer::SharpBwTextScope sharpText(renderer, sharpBwText);
+#endif
+      page->renderWithImagePlaceholders(renderer, fontId, orientedMarginLeft, orientedMarginTop, foregroundBlack);
+      finalizeBufferComposition();
+    }
     renderStatusBar();
     renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     renderer.clearScreen(ReaderUtils::readerBackgroundColor());

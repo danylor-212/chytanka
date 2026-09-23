@@ -47,6 +47,9 @@ class GfxRenderer {
   HalDisplay& display;
   RenderMode renderMode;
   mutable bool absoluteGrayPlanes = false;
+#ifdef CHYTANKA
+  mutable bool sharpBwText = false;
+#endif
   Orientation orientation;
   bool fadingFix;
   uint8_t* frameBuffer = nullptr;
@@ -314,6 +317,41 @@ class GfxRenderer {
   void drawTextRotated90CW(int fontId, int x, int y, const char* text, bool black = true,
                            EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   int getTextHeight(int fontId) const;
+
+  // Which 2-bit glyph pixels are ink in BW mode. bmpVal: 0 black, 1 dark gray,
+  // 2 light gray, 3 white. The default inks every non-white pixel, which is the
+  // base the grayscale overlay later lightens. Sharp mode is for text that no
+  // grayscale pass will refine: it drops light-gray coverage so edges are not
+  // thickened into bold, blotchy strokes.
+  static constexpr bool isBwGlyphInk(const uint8_t bmpVal, const bool sharp) {
+    return sharp ? bmpVal <= 1 : bmpVal < 3;
+  }
+  // Sharp B/W glyph threshold (Chytanka only; compiled out of stock builds).
+  // Readers enable it while composing page text that gets no grayscale pass.
+#ifdef CHYTANKA
+  void setSharpBwText(const bool enabled) const { sharpBwText = enabled; }
+  bool sharpBwTextEnabled() const { return sharpBwText; }
+  class SharpBwTextScope {
+   public:
+    SharpBwTextScope(const GfxRenderer& renderer, const bool enabled)
+        : renderer(renderer), previous(renderer.sharpBwText) {
+      renderer.setSharpBwText(enabled);
+    }
+    ~SharpBwTextScope() { renderer.setSharpBwText(previous); }
+    SharpBwTextScope(const SharpBwTextScope&) = delete;
+    SharpBwTextScope& operator=(const SharpBwTextScope&) = delete;
+
+   private:
+    const GfxRenderer& renderer;
+    bool previous;
+  };
+#else
+  void setSharpBwText(bool) const {}
+  constexpr bool sharpBwTextEnabled() const { return false; }
+  struct SharpBwTextScope {
+    SharpBwTextScope(const GfxRenderer&, bool) {}
+  };
+#endif
 
   // Grayscale functions
   void setRenderMode(RenderMode mode);

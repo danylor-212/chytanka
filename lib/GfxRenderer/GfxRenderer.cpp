@@ -58,7 +58,7 @@ int scaled75SourceEnd(const int dst, const int srcLimit) {
 void draw2BitFontPixel(const GfxRenderer& renderer, const GfxRenderer::RenderMode renderMode, const int x, const int y,
                        const uint8_t raw, const bool pixelState) {
   const uint8_t bmpVal = 3 - raw;
-  if (renderMode == GfxRenderer::BW && bmpVal < 3) {
+  if (renderMode == GfxRenderer::BW && GfxRenderer::isBwGlyphInk(bmpVal, renderer.sharpBwTextEnabled())) {
     renderer.drawPixel(x, y, pixelState);
   } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
     renderer.drawPixel(x, y, false);
@@ -842,6 +842,7 @@ static void renderCharImpl(const GfxRenderer& renderer, GfxRenderer::RenderMode 
   }
 
   const uint8_t* bitmap = renderer.getGlyphBitmap(fontData, glyph);
+  const bool sharpBw = renderer.sharpBwTextEnabled();
 
   if (bitmap != nullptr) {
     // For Normal:  outer loop advances screenY, inner loop advances screenX
@@ -876,8 +877,9 @@ static void renderCharImpl(const GfxRenderer& renderer, GfxRenderer::RenderMode 
           // 0 -> black, 1 -> dark grey, 2 -> light grey, 3 -> white
           const uint8_t bmpVal = 3 - ((byte >> bit_index) & 0x3);
 
-          if (renderMode == GfxRenderer::BW && bmpVal < 3) {
-            // Black (also paints over the grays in BW mode)
+          if (renderMode == GfxRenderer::BW && GfxRenderer::isBwGlyphInk(bmpVal, sharpBw)) {
+            // Black (also paints over the grays in BW mode, except light gray
+            // in sharp B/W-only text)
             renderer.drawPixel(screenX, screenY, pixelState);
           } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
             // Light gray (also mark the MSB if it's going to be a dark gray too)

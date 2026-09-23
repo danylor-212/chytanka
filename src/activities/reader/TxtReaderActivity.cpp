@@ -826,8 +826,14 @@ void TxtReaderActivity::renderPage() {
   renderLines();  // scan pass — text accumulated, no drawing
   scope.endScanAndPrewarm();
 
-  // BW rendering
-  renderLines();
+  // BW rendering. Chytanka: without a grayscale pass, use the sharp B/W glyph
+  // threshold; the anti-aliased path needs the full black base.
+  {
+#ifdef CHYTANKA
+    GfxRenderer::SharpBwTextScope sharpText(renderer, !SETTINGS.textAntiAliasing);
+#endif
+    renderLines();
+  }
   renderStatusBar();
   if (statusBarVisible) {
     GUI.drawTopStatusBarClock(renderer, UITheme::getInstance().getMetrics().topPadding, nullptr, true, 0,
