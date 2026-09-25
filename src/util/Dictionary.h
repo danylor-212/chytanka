@@ -119,8 +119,9 @@ class Dictionary {
   static DictLocation locate(const std::string& word, const DictLookupCallbacks& cbs = {},
                              const char* cachePath = nullptr);
 
-  // Search the exact word and then its stem variants while reusing one open
-  // index/accelerator session. matchedStem is set only when a variant matched.
+  // Search the word's key variants (see lookupKeyVariants) and then its English
+  // stem variants while reusing one open index/accelerator session.
+  // matchedStem is set only when a stem variant matched.
   static DictLocation locateWithStemVariants(const std::string& word, bool* matchedStem,
                                              const DictLookupCallbacks& cbs = {}, const char* cachePath = nullptr);
 
@@ -134,11 +135,41 @@ class Dictionary {
   // rendered as text.
   static DictDefinitionSlice resolveDefinitionSlice(const DictLocation& location, const DictInfo& info);
 
-  // Look up word in .syn (via .syn.oft if present).
-  // Returns the canonical headword from .idx, or empty string if not found.
+  // Look up word in .syn (via .syn.oft if present), trying the same key
+  // variants as locateWithStemVariants(). Returns the canonical headword from
+  // .idx, or empty string if not found.
   static std::string resolveAltForm(const std::string& word, const char* cachePath = nullptr);
 
+  // Resolve word through .syn and return the .idx location of the headword it
+  // maps to (for inflected-form dictionaries: the lemma). The .idx entry is read
+  // by ordinal, so no second binary search is needed.
+  static DictLocation locateAltForm(const std::string& word, const DictLookupCallbacks& cbs = {},
+                                    const char* cachePath = nullptr);
+
+  // True when the active dictionary has a .syn file plus a .syn.oft or
+  // .syn.oft.cspt accelerator, so an alternate-form lookup costs a bounded
+  // number of reads and can run automatically instead of behind a prompt.
+  static bool hasIndexedAltForms(const char* cachePath = nullptr);
+
   static std::string cleanWord(const std::string& word);
+
+  // Dictionary key normalisation contract (dictionary builders must emit keys
+  // that already satisfy it):
+  //   - apostrophes U+0027 ' , U+0060 ` , U+00B4 ´ , U+02BC ʼ , U+2018 ‘ and
+  //     U+2019 ’ all become U+2019 ’
+  //   - U+0301 COMBINING ACUTE ACCENT (stress mark) is removed
+  // Everything else is left as-is; case is handled by lookupKeyVariants().
+  static std::string normalizeLookupKey(const std::string& word);
+
+  // Ordered, de-duplicated spellings to probe for a cleaned word:
+  //   1. the word exactly as selected (keeps old behaviour for every dictionary)
+  //   2. normalizeLookupKey(word)
+  //   3. its full lowercase (ASCII, Latin-1/Ext-A, Cyrillic incl. Ґ Є І Ї)
+  //   4. title case: first letter kept, the rest lowercased ("КИЇВ" -> "Київ")
+  //   5. the lowercase key with ’ replaced by ASCII ' (dictionaries that key on ')
+  // Spellings that differ only in ASCII case are dropped because the index
+  // comparison already folds ASCII.
+  static std::vector<std::string> lookupKeyVariants(const std::string& word);
   static std::vector<std::string> getStemVariants(const std::string& word);
 
   // Returns up to maxResults words from .idx that are close in edit distance to word.
@@ -178,6 +209,18 @@ class Dictionary {
   // Read the word at ordinal `ordinal` in .idx.
   // folderPath is the dictionary base path (e.g. /dictionary/dict-en-en/dict-data).
   static std::string wordAtOrdinal(const std::string& folderPath, uint32_t ordinal);
+
+  // Read the full .idx entry (headword, offset, size) at `ordinal`.
+  static DictLocation locationAtOrdinal(const std::string& folderPath, uint32_t ordinal);
+
+  // Find `word` in an open .syn file. On success stores the .idx ordinal and
+  // returns true. Prefers an exact-case match over an ASCII-case-folded one.
+  static bool findSynOrdinal(HalFile& syn, uint32_t synFileSize, const DictPaths& paths, const std::string& word,
+                             uint32_t* ordinal);
+
+  // Shared by resolveAltForm/locateAltForm: tries every key variant in .syn.
+  static bool findAltFormOrdinal(const std::string& folderPath, const std::string& word, const DictLookupCallbacks& cbs,
+                                 uint32_t* ordinal);
 
   static std::string readDefinition(const std::string& folderPath, uint32_t offset, uint32_t size);
 

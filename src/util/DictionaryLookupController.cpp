@@ -75,6 +75,8 @@ void DictionaryLookupController::startLookup(const std::string& word, bool recor
   lookupCancelRequested = false;
   lookupReadError = false;
   lookupMatchedStem = false;
+  lookupMatchedAltForm = false;
+  altFormsSearched = false;
   recordHistory_ = recordHistory;
   state = LookupState::LookingUp;
   // CLEANUP: on Auto-only commit, delete only this line (gate below stays — it's the Auto check)
@@ -129,8 +131,10 @@ DictionaryLookupController::LookupEvent DictionaryLookupController::handleInput(
 
       if (foundLocation.found) {
         foundWord = std::move(foundLocation.headword);
-        foundStatus =
-            nextIsSuggestion ? FoundStatus::Suggestion : (lookupMatchedStem ? FoundStatus::Stem : FoundStatus::Direct);
+        foundStatus = nextIsSuggestion       ? FoundStatus::Suggestion
+                      : lookupMatchedAltForm ? FoundStatus::AltForm
+                      : lookupMatchedStem    ? FoundStatus::Stem
+                                             : FoundStatus::Direct;
         nextIsSuggestion = false;
         return LookupEvent::FoundDefinition;
       }
@@ -140,8 +144,9 @@ DictionaryLookupController::LookupEvent DictionaryLookupController::handleInput(
         return LookupEvent::None;
       }
 
-      // Try alt forms
-      if (shouldOfferAltForms_ && Dictionary::hasAltForms(cachePath.c_str())) {
+      // Offer alternate forms only when the worker could not search them
+      // cheaply itself (a .syn without .syn.oft/.cspt needs a full scan).
+      if (shouldOfferAltForms_ && !altFormsSearched && Dictionary::hasAltForms(cachePath.c_str())) {
         altFormWord = lookupWord;
         state = LookupState::AltFormPrompt;
 #if CROSSINK_APP_CAP_TOUCH
@@ -181,16 +186,17 @@ DictionaryLookupController::LookupEvent DictionaryLookupController::handleInput(
 #endif
     ) {
       state = LookupState::Idle;
-      std::string canonical = Dictionary::resolveAltForm(altFormWord, cachePath.c_str());
-      if (!canonical.empty()) {
-        auto loc = Dictionary::locate(canonical, {}, cachePath.c_str());
-        if (loc.found) {
-          foundWord = std::move(loc.headword);
-          foundLocation = std::move(loc);
-          foundStatus = nextIsSuggestion ? FoundStatus::Suggestion : FoundStatus::AltForm;
-          nextIsSuggestion = false;
-          return LookupEvent::FoundDefinition;
-        }
+      auto loc = Dictionary::locateAltForm(altFormWord, {}, cachePath.c_str());
+      if (loc.found) {
+        foundWord = loc.headword;
+        foundLocation = std::move(loc);
+        foundStatus = nextIsSuggestion ? FoundStatus::Suggestion : FoundStatus::AltForm;
+        nextIsSuggestion = false;
+        return LookupEvent::FoundDefinition;
+      }
+      if (loc.readError) {
+        showReadError();
+        return LookupEvent::None;
       }
       handleLookupFailed();
       return LookupEvent::None;
@@ -590,6 +596,16 @@ void DictionaryLookupController::runLookup() {
     return;
   }
   foundLocation = Dictionary::locateWithStemVariants(lookupWord, &lookupMatchedStem, cbs, cachePath.c_str());
+  // Inflected-form dictionaries (e.g. Ukrainian: form -> lemma in .syn) miss the
+  // direct lookup on about half of all words. With an indexed .syn the search
+  // is a few bounded reads, so run it here instead of asking first.
+  if (!foundLocation.found && !foundLocation.readError && !lookupCancelRequested && shouldOfferAltForms_ &&
+      Dictionary::hasIndexedAltForms(cachePath.c_str())) {
+    altFormsSearched = true;
+    DictLocation altLocation = Dictionary::locateAltForm(lookupWord, cbs, cachePath.c_str());
+    lookupMatchedAltForm = altLocation.found;
+    if (altLocation.found || altLocation.readError) foundLocation = std::move(altLocation);
+  }
   lookupReadError = foundLocation.readError;
   lookupCancelled = lookupCancelRequested.load();
   lookupDone = true;

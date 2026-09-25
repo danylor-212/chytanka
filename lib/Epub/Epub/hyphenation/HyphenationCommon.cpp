@@ -2,71 +2,10 @@
 
 #include <Utf8.h>
 
-namespace {
+// Case mapping lives in lib/Utf8 so dictionary lookup folds exactly like hyphenation.
+uint32_t toLowerLatin(const uint32_t cp) { return utf8ToLowerLatin(cp); }
 
-// Convert Latin uppercase letters (ASCII plus Latin-1 supplement) to lowercase
-uint32_t toLowerLatinImpl(const uint32_t cp) {
-  if (cp >= 'A' && cp <= 'Z') {
-    return cp - 'A' + 'a';
-  }
-  if ((cp >= 0x00C0 && cp <= 0x00D6) || (cp >= 0x00D8 && cp <= 0x00DE)) {
-    return cp + 0x20;
-  }
-
-  // Latin Extended-A (U+0100..U+017E): uppercase letters are paired with
-  // lowercase at cp+1. Two sub-ranges have different alignment:
-  //   U+0100..U+0137: uppercase on EVEN codepoints
-  //   U+0139..U+0148: uppercase on ODD codepoints
-  //   U+014A..U+0177: uppercase on EVEN codepoints
-  //   U+0179..U+017E: uppercase on ODD codepoints
-  // Covers Polish (Ą/ą, Ć/ć, Ę/ę, Ł/ł, Ń/ń, Ś/ś, Ź/ź, Ż/ż), Czech, Hungarian, Turkish, etc.
-  if ((cp >= 0x0100 && cp <= 0x0137 && (cp % 2 == 0)) || (cp >= 0x0139 && cp <= 0x0148 && (cp % 2 == 1)) ||
-      (cp >= 0x014A && cp <= 0x0177 && (cp % 2 == 0)) || (cp >= 0x0179 && cp <= 0x017E && (cp % 2 == 1))) {
-    return cp + 1;
-  }
-
-  switch (cp) {
-    case 0x0178:      // Ÿ
-      return 0x00FF;  // ÿ
-    case 0x1E9E:      // ẞ
-      return 0x00DF;  // ß
-    default:
-      return cp;
-  }
-}
-
-// Convert Cyrillic uppercase letters to lowercase across U+0400..U+052F.
-//   U+0400..U+040F (Ѐ Ё Ђ Ѓ Є Ѕ І Ї Ј Љ Њ Ћ Ќ Ѝ Ў Џ) -> +0x50
-//   U+0410..U+042F (А..Я)                            -> +0x20
-//   U+0460..U+0481, U+048A..U+04BF, U+04D0..U+052F: case pairs, even = upper (Ѣ, Ґ, Ә, ...)
-//   U+04C1..U+04CE: case pairs, odd = upper (Ӂ, ...)
-//   U+04C0 (Ӏ palochka) -> U+04CF
-uint32_t toLowerCyrillicImpl(const uint32_t cp) {
-  if (cp >= 0x0400 && cp <= 0x040F) {
-    return cp + 0x50;
-  }
-  if (cp >= 0x0410 && cp <= 0x042F) {
-    return cp + 0x20;
-  }
-  if (cp == 0x04C0) {
-    return 0x04CF;
-  }
-  const bool evenUpperBlock =
-      (cp >= 0x0460 && cp <= 0x0481) || (cp >= 0x048A && cp <= 0x04BF) || (cp >= 0x04D0 && cp <= 0x052F);
-  if (evenUpperBlock && (cp % 2 == 0)) {
-    return cp + 1;
-  }
-  if (cp >= 0x04C1 && cp <= 0x04CE && (cp % 2 == 1)) {
-    return cp + 1;
-  }
-  return cp;
-}
-
-}  // namespace
-
-uint32_t toLowerLatin(const uint32_t cp) { return toLowerLatinImpl(cp); }
-
-uint32_t toLowerCyrillic(const uint32_t cp) { return toLowerCyrillicImpl(cp); }
+uint32_t toLowerCyrillic(const uint32_t cp) { return utf8ToLowerCyrillic(cp); }
 
 bool isLatinLetter(const uint32_t cp) {
   if ((cp >= 'A' && cp <= 'Z') || (cp >= 'a' && cp <= 'z')) {

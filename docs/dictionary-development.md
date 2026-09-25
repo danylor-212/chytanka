@@ -27,7 +27,9 @@ Dictionary discovery is implemented by `DictionaryRegistry`. It checks `/.dictio
 3. Fall back to the device-generated `.qidx` sampled index.
 4. Fall back to scanning `.idx` from the beginning if the sidecar cannot be read or written.
 
-`Dictionary::resolveAltForm` uses `.syn.oft.cspt`, then `.syn.oft`, then a full `.syn` scan. `Dictionary::findSimilar` uses `.idx.oft` when available and otherwise uses `.qidx` to scan a bounded neighborhood. If neither index accelerator is usable, spelling suggestions are skipped so a large dictionary cannot block the reader UI; direct lookup still works with the uncompressed `.dict` and `.idx` files.
+`Dictionary::locateWithStemVariants` probes every spelling from `Dictionary::lookupKeyVariants` before trying English stems: the selected word, the word after key normalisation (apostrophes ' ` ´ ʼ ‘ ’ become U+2019 ’, combining acute U+0301 is removed), its full lowercase (ASCII, Latin-1/Extended-A and Cyrillic U+0400–U+052F, the same mapping hyphenation uses), a title-case form, and the lowercase form with an ASCII apostrophe.
+
+`Dictionary::locateAltForm` and `Dictionary::resolveAltForm` try the same spellings in `.syn`, using `.syn.oft.cspt`, then `.syn.oft`, then a full `.syn` scan. `locateAltForm` then reads the `.idx` entry directly by ordinal. The lookup controller runs it automatically when `.syn` has a `.syn.oft` or `.syn.oft.cspt` accelerator (`Dictionary::hasIndexedAltForms`), and keeps the confirmation prompt for dictionaries whose `.syn` would need a full scan. `Dictionary::findSimilar` uses `.idx.oft` when available and otherwise uses `.qidx` to scan a bounded neighborhood. If neither index accelerator is usable, spelling suggestions are skipped so a large dictionary cannot block the reader UI; direct lookup still works with the uncompressed `.dict` and `.idx` files.
 
 `.qidx` uses a 20-byte little-endian header containing `QIDX`, format version, sample interval, sample count, and source `.idx` size, followed by the byte offset of every 256th `.idx` entry. It is written through a temporary file and installed only after the complete scan succeeds. A size mismatch or invalid header causes it to be rebuilt.
 
@@ -131,13 +133,19 @@ Both `.idx.oft.cspt` and `.syn.oft.cspt` use the same format:
 | 8 | 4 | Entry count (little-endian) |
 | 12... | 20 each | 16-byte, zero-padded prefix plus 4-byte source offset |
 
-The reader performs a case-insensitive binary search for the last prefix less than or equal to the target, then scans only until the next recorded source offset. Invalid or missing `.cspt` data falls back to `.oft`, then to a full scan.
+The reader binary-searches for the last prefix that sorts before the target, then scans forward until it passes the target. A prefix with no zero padding may be a truncated longer word (16 bytes is only 8 Cyrillic letters), so when such a prefix equals the start of the target the search treats it as not before the target and starts one sample earlier. Invalid or missing `.cspt` data falls back to `.oft`, then to a full scan.
+
+## Key Order And Normalisation
+
+`.idx` and `.syn` must be sorted in StarDict order: compare UTF-8 bytes after folding only ASCII `A`-`Z` to lowercase, and break ties with a plain byte comparison. In Python that is `key=lambda w: (w.encode().lower(), w.encode())` (`scripts/dictionary_tools.py` exposes it as `stardict_sort_key`). Do not sort with `str.lower()`: it folds Cyrillic and other scripts, and the device's binary search then lands in the wrong place. The device does not fold non-ASCII case inside the index comparison; it probes lowercase and title-case spellings instead.
+
+Dictionary builders should store keys already normalised the way the device normalises lookups: use U+2019 ’ for every apostrophe and drop U+0301 stress marks. Keep common words lowercase and proper nouns capitalised.
 
 The header's stride field is currently informational. Producers must continue to emit `16` until the format version and readers are updated together.
 
 ## Verification
 
-There is no dictionary-specific host fixture suite in this branch. For changes:
+`test/dictionary_lookup` builds small StarDict fixtures (with and without `.oft`, `.cspt` and `.syn`) and covers case folding, normalisation, the `.cspt` truncated-prefix case and `.syn` resolution. `DictionaryLookupBench <folder>/<stem> [sampleEvery]`, built in the same folder, resolves every headword and `.syn` form of a real dictionary and prints the average file opens, seeks and SD sectors per lookup. For changes:
 
 1. Run `python3 scripts/dictionary_tools.py prep` and `lookup` against a representative StarDict dictionary.
 2. Build the simulator with `pio run -e simulator` for reader/UI integration.

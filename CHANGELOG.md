@@ -8,6 +8,9 @@
 
 ### Fixed
 
+- Dictionary lookup finds capitalised Cyrillic words ("Книжка" finds "книжка", "КИЇВ" finds "Київ"), treats typographic and ASCII apostrophes as the same character, and ignores stress marks.
+- Dictionary words longer than eight Cyrillic letters are no longer skipped when the dictionary has `.cspt` accelerator files and several entries share their first eight letters.
+- `scripts/dictionary_tools.py merge` sorts non-ASCII headwords in the order the device expects.
 - Dashboard stats and reading-stats cells drop the minutes from long durations (for example 123h) instead of running into the cover or the next cell.
 - Button hint labels longer than their box widen into the free space beside it or are shortened with an ellipsis instead of spilling over the border. Labels that fit are drawn as before.
 - Long reader toasts wrap onto up to three lines instead of running off the screen.
@@ -16,6 +19,7 @@
 
 ### Changed
 
+- Inflected words are looked up in the dictionary's alternate-forms (`.syn`) file automatically, without the "search alternate forms?" prompt, when that file has a `.syn.oft` or `.syn.oft.cspt` accelerator. The definition shows the dictionary form of the word.
 - Translation generation fails when any language's printf placeholders read different arguments than English (or use positional `%1$s`), and warns when a translation only drops trailing ones or adds some to plain text.
 - A language's own strings may now use up to 64 KB instead of 32 KB.
 

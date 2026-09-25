@@ -357,7 +357,85 @@ DictInfo Dictionary::readInfo(const char* folderPath) {
 // Word cleaning
 // ---------------------------------------------------------------------------
 
+static int cistrcmp(const char* a, const char* b);
+
 std::string Dictionary::cleanWord(const std::string& word) { return utf8CleanLookupWord(word); }
+
+namespace {
+constexpr char CANONICAL_APOSTROPHE[] = "\xE2\x80\x99";  // U+2019 RIGHT SINGLE QUOTATION MARK
+
+bool isLookupApostrophe(const uint32_t cp) {
+  return cp == 0x0027 || cp == 0x0060 || cp == 0x00B4 || cp == 0x02BC || cp == 0x2018 || cp == 0x2019;
+}
+
+constexpr uint32_t COMBINING_ACUTE = 0x0301;  // stress mark in Ukrainian/Russian text
+}  // namespace
+
+std::string Dictionary::normalizeLookupKey(const std::string& word) {
+  // Fast path: every codepoint this rewrites starts with one of these bytes
+  // (' ` 0xC2 for ´, 0xCA for ʼ, 0xE2 for ‘ ’, 0xCC for U+0301).
+  const bool mayChange = std::any_of(word.begin(), word.end(), [](const char ch) {
+    const auto c = static_cast<unsigned char>(ch);
+    return c == '\'' || c == '`' || c == 0xC2 || c == 0xCA || c == 0xE2 || c == 0xCC;
+  });
+  if (!mayChange) return word;
+
+  std::string out;
+  out.reserve(word.size() + 4);
+  const auto* p = reinterpret_cast<const unsigned char*>(word.c_str());
+  while (*p) {
+    const auto* start = p;
+    const uint32_t cp = utf8NextCodepoint(&p);
+    if (cp == COMBINING_ACUTE) continue;
+    if (isLookupApostrophe(cp)) {
+      out += CANONICAL_APOSTROPHE;
+    } else {
+      out.append(reinterpret_cast<const char*>(start), p - start);
+    }
+  }
+  return out;
+}
+
+std::vector<std::string> Dictionary::lookupKeyVariants(const std::string& word) {
+  std::vector<std::string> variants;
+  if (word.empty()) return variants;
+  variants.reserve(5);
+  auto add = [&variants](std::string candidate) {
+    if (candidate.empty()) return;
+    for (const auto& existing : variants) {
+      if (cistrcmp(existing.c_str(), candidate.c_str()) == 0) return;
+    }
+    variants.push_back(std::move(candidate));
+  };
+
+  add(word);
+  const std::string key = normalizeLookupKey(word);
+  const std::string lower = utf8ToLower(key);
+  add(key);
+  add(lower);
+
+  // Title case for capitalised headwords (proper nouns) selected in all caps.
+  const auto* p = reinterpret_cast<const unsigned char*>(key.c_str());
+  utf8NextCodepoint(&p);
+  const size_t firstLen = static_cast<size_t>(p - reinterpret_cast<const unsigned char*>(key.c_str()));
+  if (firstLen < key.size()) add(key.substr(0, firstLen) + utf8ToLower(key.substr(firstLen)));
+
+  // Dictionaries built without this contract often key on the ASCII apostrophe.
+  if (lower.find(CANONICAL_APOSTROPHE) != std::string::npos) {
+    std::string ascii;
+    ascii.reserve(lower.size());
+    for (size_t i = 0; i < lower.size(); i++) {
+      if (lower.compare(i, 3, CANONICAL_APOSTROPHE) == 0) {
+        ascii += '\'';
+        i += 2;
+      } else {
+        ascii += lower[i];
+      }
+    }
+    add(std::move(ascii));
+  }
+  return variants;
+}
 
 // ---------------------------------------------------------------------------
 // Low-level file reading helpers
@@ -387,18 +465,37 @@ int Dictionary::readWordInto(HalFile& file, char* buf, size_t bufSize) {
 // OFT binary search helper
 // ---------------------------------------------------------------------------
 
-// Case-insensitive strcmp for ASCII — used in findPageBounds() because StarDict
-// dictionaries (including wiktionary-derived ones) are sorted case-insensitively.
-// Using plain strcmp would cause the binary search to land on the wrong page for
-// any word whose alphabetic neighbourhood contains mixed-case page boundaries.
+// Dictionary key order. StarDict sorts .idx and .syn with g_ascii_strcasecmp()
+// and breaks ties with strcmp(): bytes are compared one by one after folding
+// ASCII A-Z to a-z, and every other byte (all of UTF-8 Cyrillic, Greek, accented
+// Latin, ...) compares by its raw value. Binary search over the index files
+// must use exactly this rule, so it deliberately does NOT fold Cyrillic: with a
+// Unicode-aware fold, "Київ" would have to sit next to "київ", but StarDict tools
+// put it before every lowercase "к..." word. Case-insensitive lookup for
+// non-ASCII scripts is done by probing lowercased/title-cased spellings instead
+// (see lookupKeyVariants()). Dictionary builders must sort keys by
+//   (ascii_fold(bytes), bytes)
+// which is StarDict's own order; Python's str.lower() is not equivalent.
+static inline int asciiFold(const unsigned char c) { return (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
+
 static int cistrcmp(const char* a, const char* b) {
   while (*a && *b) {
-    int diff = std::tolower(static_cast<unsigned char>(*a)) - std::tolower(static_cast<unsigned char>(*b));
+    const int diff = asciiFold(static_cast<unsigned char>(*a)) - asciiFold(static_cast<unsigned char>(*b));
     if (diff != 0) return diff;
     a++;
     b++;
   }
-  return std::tolower(static_cast<unsigned char>(*a)) - std::tolower(static_cast<unsigned char>(*b));
+  return asciiFold(static_cast<unsigned char>(*a)) - asciiFold(static_cast<unsigned char>(*b));
+}
+
+// True when the first n bytes of a and b are equal under cistrcmp's fold.
+static bool cistrPrefixEqual(const char* a, const char* b, const size_t n) {
+  for (size_t i = 0; i < n; i++) {
+    if (b[i] == '\0' || asciiFold(static_cast<unsigned char>(a[i])) != asciiFold(static_cast<unsigned char>(b[i]))) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // CLEANUP: on Auto-only commit, delete only this line (readCsptEntryCount below stays)
@@ -565,8 +662,19 @@ bool Dictionary::binarySearchCspt(HalFile& cspt, const char* target, uint32_t id
 
     // Null-terminate prefix for cistrcmp (prefix is already null-padded if shorter).
     entry[prefixLen] = '\0';
-    const int cmp = cistrcmp(reinterpret_cast<const char*>(entry), target);
-    if (cmp > 0 || (startBeforeCaseMatches && cmp == 0)) {
+    const char* sample = reinterpret_cast<const char*>(entry);
+    const int cmp = cistrcmp(sample, target);
+    // Sample keys are the first prefixLen BYTES of the sampled word (16 bytes =
+    // only 8 Cyrillic letters). A sample with no NUL padding may be truncated,
+    // and when its bytes equal the start of the target, the full sampled word
+    // can sort on either side of the target ("книжкови|ми" vs "книжковий").
+    // Treat it as "not before the target" so the search moves left; the
+    // forward scan in the caller is not bounded by endByte and walks on from
+    // the earlier sample, so this only costs extra entries, never a miss.
+    // Older .cspt files need no change: the format is the same.
+    const bool truncatedPrefixMatch =
+        cmp <= 0 && entry[prefixLen - 1] != '\0' && cistrPrefixEqual(sample, target, prefixLen);
+    if (cmp > 0 || (startBeforeCaseMatches && cmp == 0) || truncatedPrefixMatch) {
       hi = mid - 1;
     } else {
       lo = mid;
@@ -949,7 +1057,11 @@ DictLocation Dictionary::locateWithStemVariants(const std::string& word, bool* m
     return result;
   }
 
-  DictLocation result = locateInSession(session, word, cbs);
+  DictLocation result;
+  for (const auto& key : lookupKeyVariants(word)) {
+    result = locateInSession(session, key, cbs);
+    if (result.found || result.readError || (cbs.shouldCancel && cbs.shouldCancel(cbs.ctx))) break;
+  }
   if (!result.found && !result.readError && !(cbs.shouldCancel && cbs.shouldCancel(cbs.ctx))) {
     const auto stems = getStemVariants(word);
     for (const auto& stem : stems) {
@@ -984,13 +1096,18 @@ std::string Dictionary::lookup(const std::string& word, const DictLookupCallback
 // Alternate-form lookup (.syn)
 // ---------------------------------------------------------------------------
 
-// Resolve the word at 0-based ordinal in .idx using .idx.oft for fast page seek.
-std::string Dictionary::wordAtOrdinal(const std::string& folderPath, uint32_t ordinal) {
+// Resolve the entry at 0-based ordinal in .idx using .idx.oft for fast page seek.
+DictLocation Dictionary::locationAtOrdinal(const std::string& folderPath, uint32_t ordinal) {
+  DictLocation result;
+  result.folderPath = folderPath;
   DictPaths dp(folderPath);
-  const DictInfo info = readInfo(folderPath.c_str());
-  const uint8_t suffixBytes = idxEntrySuffixBytes(info);
+  // DictInfo is ~600 bytes; keep it a temporary on the 4 KB lookup-task stack.
+  const uint8_t suffixBytes = idxEntrySuffixBytes(readInfo(folderPath.c_str()));
   HalFile idx;
-  if (!Storage.openFileForRead("DICT", dp.idx().c_str(), idx)) return "";
+  if (!Storage.openFileForRead("DICT", dp.idx().c_str(), idx)) {
+    result.readError = true;
+    return result;
+  }
 
   const uint32_t pageNum = ordinal / OFT_STRIDE;
   const uint32_t withinPage = ordinal % OFT_STRIDE;
@@ -1002,72 +1119,70 @@ std::string Dictionary::wordAtOrdinal(const std::string& folderPath, uint32_t or
     if (Storage.openFileForRead("DICT", dp.idxOft().c_str(), oft)) {
       oft.seekSet(OFT_HEADER_SIZE + (pageNum - 1) * 4);
       uint8_t raw[4];
-      if (oft.read(raw, 4) == 4) memcpy(&pageStartByte, raw, 4);  // LE uint32
+      if (oft.read(raw, 4) == 4) {
+        memcpy(&pageStartByte, raw, 4);  // LE uint32
+        entriesToSkip = withinPage;
+      }
       oft.close();
-      entriesToSkip = withinPage;
     }
   }
-
-  idx.seekSet(pageStartByte);
 
   // Skip entries to reach the target. With a usable .idx.oft this is at most
   // 31 entries; otherwise fall back to a full ordinal scan.
-  for (uint32_t i = 0; i < entriesToSkip; i++) {
-    if (readWordInto(idx, wordBuf, sizeof(wordBuf)) < 0) {
-      idx.close();
-      return "";
-    }
-    uint8_t skip[12];
-    if (idx.read(skip, suffixBytes) != suffixBytes) {
-      idx.close();
-      return "";
-    }
+  uint8_t suffix[12];
+  bool ok = idx.seekSet(pageStartByte);
+  for (uint32_t i = 0; ok && i < entriesToSkip; i++) {
+    ok = readWordInto(idx, wordBuf, sizeof(wordBuf)) >= 0 && idx.read(suffix, suffixBytes) == suffixBytes;
   }
-
-  int len = readWordInto(idx, wordBuf, sizeof(wordBuf));
+  const int len = ok ? readWordInto(idx, wordBuf, sizeof(wordBuf)) : -1;
+  ok = len >= 0 && idx.read(suffix, suffixBytes) == suffixBytes;
   idx.close();
-  if (len < 0) return "";
-  return std::string(wordBuf, static_cast<size_t>(len));
+  if (!ok) {
+    result.readError = true;
+    return result;
+  }
+  if (suffixBytes == 12 && readBigEndian32(suffix) != 0) {
+    LOG_ERR("DICT", "64-bit dictionary offset exceeds supported range");
+    return result;
+  }
+  result.headword.assign(wordBuf, static_cast<size_t>(len));
+  result.offset = suffixBytes == 12 ? readBigEndian32(suffix + 4) : readBigEndian32(suffix);
+  result.size = readBigEndian32(suffix + (suffixBytes == 12 ? 8 : 4));
+  result.found = true;
+  return result;
 }
 
-std::string Dictionary::resolveAltForm(const std::string& word, const char* cachePath) {
-  std::string folderPath = readDictPath(cachePath);
-  if (folderPath.empty()) return "";
+std::string Dictionary::wordAtOrdinal(const std::string& folderPath, uint32_t ordinal) {
+  DictLocation location = locationAtOrdinal(folderPath, ordinal);
+  return location.found ? std::move(location.headword) : std::string();
+}
 
-  DictPaths dp(folderPath);
-  if (!Storage.exists(dp.syn().c_str())) return "";
-
-  HalFile syn;
-  if (!Storage.openFileForRead("DICT", dp.syn().c_str(), syn)) return "";
-
-  const uint32_t synFileSize = static_cast<uint32_t>(syn.fileSize());
+bool Dictionary::findSynOrdinal(HalFile& syn, const uint32_t synFileSize, const DictPaths& paths,
+                                const std::string& word, uint32_t* ordinal) {
   uint32_t startByte = 0;
   uint32_t endByte = synFileSize;
-
-  resolveScanBounds(dp.synOftCspt().c_str(), dp.synOft().c_str(), syn, synFileSize, word.c_str(), &startByte, &endByte,
-                    true);
-
-  syn.seekSet(startByte);
+  resolveScanBounds(paths.synOftCspt().c_str(), paths.synOft().c_str(), syn, synFileSize, word.c_str(), &startByte,
+                    &endByte, true);
+  if (!syn.seekSet(startByte)) return false;
 
   bool fallbackFound = false;
   uint32_t fallbackIdx = 0;
   // As with .idx lookup, include a case-equivalent entry that begins exactly
   // on the next accelerator boundary.
   while (static_cast<uint32_t>(syn.position()) < synFileSize) {
-    int len = readWordInto(syn, wordBuf, sizeof(wordBuf));
+    const int len = readWordInto(syn, wordBuf, sizeof(wordBuf));
     if (len < 0) break;
 
     uint8_t idxBuf[4];
     if (syn.read(idxBuf, 4) != 4) break;
 
-    int cmp = cistrcmp(wordBuf, word.c_str());
+    const int cmp = cistrcmp(wordBuf, word.c_str());
     if (cmp == 0) {
       // Big-endian original word index in .idx
-      uint32_t originalIdx = (static_cast<uint32_t>(idxBuf[0]) << 24) | (static_cast<uint32_t>(idxBuf[1]) << 16) |
-                             (static_cast<uint32_t>(idxBuf[2]) << 8) | static_cast<uint32_t>(idxBuf[3]);
+      const uint32_t originalIdx = readBigEndian32(idxBuf);
       if (strcmp(wordBuf, word.c_str()) == 0) {
-        syn.close();
-        return wordAtOrdinal(folderPath, originalIdx);
+        *ordinal = originalIdx;
+        return true;
       }
       if (!fallbackFound) {
         fallbackFound = true;
@@ -1078,9 +1193,55 @@ std::string Dictionary::resolveAltForm(const std::string& word, const char* cach
 
     if (cmp > 0) break;
   }
+  if (fallbackFound) *ordinal = fallbackIdx;
+  return fallbackFound;
+}
 
+bool Dictionary::findAltFormOrdinal(const std::string& folderPath, const std::string& word,
+                                    const DictLookupCallbacks& cbs, uint32_t* ordinal) {
+  const DictPaths dp(folderPath);
+  HalFile syn;
+  if (!Storage.openFileForRead("DICT", dp.syn().c_str(), syn)) return false;
+  const uint32_t synFileSize = static_cast<uint32_t>(syn.fileSize());
+
+  bool found = false;
+  for (const auto& key : lookupKeyVariants(word)) {
+    if (cbs.shouldCancel && cbs.shouldCancel(cbs.ctx)) break;
+    if (findSynOrdinal(syn, synFileSize, dp, key, ordinal)) {
+      found = true;
+      break;
+    }
+  }
   syn.close();
-  return fallbackFound ? wordAtOrdinal(folderPath, fallbackIdx) : "";
+  return found;
+}
+
+std::string Dictionary::resolveAltForm(const std::string& word, const char* cachePath) {
+  const std::string folderPath = readDictPath(cachePath);
+  if (folderPath.empty()) return "";
+  uint32_t ordinal = 0;
+  if (!findAltFormOrdinal(folderPath, word, {}, &ordinal)) return "";
+  return wordAtOrdinal(folderPath, ordinal);
+}
+
+DictLocation Dictionary::locateAltForm(const std::string& word, const DictLookupCallbacks& cbs, const char* cachePath) {
+  DictLocation result;
+  const std::string folderPath = readDictPath(cachePath);
+  if (folderPath.empty()) return result;
+  uint32_t ordinal = 0;
+  if (!findAltFormOrdinal(folderPath, word, cbs, &ordinal)) {
+    result.folderPath = folderPath;
+    return result;
+  }
+  return locationAtOrdinal(folderPath, ordinal);
+}
+
+bool Dictionary::hasIndexedAltForms(const char* cachePath) {
+  const std::string folderPath = readDictPath(cachePath);
+  if (folderPath.empty()) return false;
+  const DictPaths dp(folderPath);
+  if (!Storage.exists(dp.syn().c_str())) return false;
+  return Storage.exists(dp.synOft().c_str()) || Storage.exists(dp.synOftCspt().c_str());
 }
 
 // ---------------------------------------------------------------------------
@@ -1304,7 +1465,10 @@ int Dictionary::editDistance(const std::string& a, const std::string& b, int max
   return dp[n];
 }
 
-std::vector<std::string> Dictionary::findSimilar(const std::string& word, int maxResults, const char* cachePath) {
+std::vector<std::string> Dictionary::findSimilar(const std::string& rawWord, int maxResults, const char* cachePath) {
+  // Search near the folded key: capitalised Cyrillic sorts far away from the
+  // lowercase headwords in StarDict order, so its neighbourhood is useless.
+  const std::string word = utf8ToLower(normalizeLookupKey(rawWord));
   std::string folderPath = readDictPath(cachePath);
   if (folderPath.empty()) return {};
 
