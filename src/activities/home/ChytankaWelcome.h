@@ -9,7 +9,7 @@ namespace chytanka {
 struct WelcomeState {
   bool markerExists = false;          // a choice was already made (or not needed)
   bool settingsFileExists = false;    // CrossInk/CrossPoint settings on the SD card
-  bool usedChytankaBefore = false;    // traces of 1.6.0.0/1.6.0.1 (quote history, OPDS seed flag)
+  bool usedChytankaBefore = false;    // traces of 1.6.0.0/1.6.0.1 (quote history, thumbnail marker, OPDS flag)
   bool languageIsUkrainian = false;   // UI language already Українська
   bool readingIsRecommended = false;  // Bitter, hyphenation on, anti-aliasing off
 };

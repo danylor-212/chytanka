@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
@@ -22,7 +23,9 @@ bool welcomeScreenNeeded();
 
 class WelcomeActivity final : public Activity {
  public:
-  WelcomeActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
+  // resumeBookPath: the book this boot would have reopened (the sleep-from-
+  // reader resume path in main.cpp), or empty to continue Home once answered.
+  WelcomeActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string resumeBookPath);
 
   void onEnter() override;
   void loop() override;
@@ -37,8 +40,12 @@ class WelcomeActivity final : public Activity {
   uint8_t focus = 0;
   bool offerLanguage = false;
   bool offerReading = false;
+  // The reader uses an SD-card font: the reading option then leaves the font
+  // alone and only offers hyphenation and anti-aliasing off, unticked.
+  bool keepSdFont = false;
   bool applyLanguage = true;
   bool applyReading = true;
+  std::string resumeBookPath;
   // Input is ignored until every button has been seen released once, so a
   // button still held from boot cannot pick an option by itself.
   bool inputArmed = false;

@@ -12,9 +12,10 @@
 
 #include "ChytankaWelcome.h"
 #include "CrossPointSettings.h"
+#include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
-#include "SettingsList.h"
+#include "activities/ActivityManager.h"
 #include "activities/RenderLock.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -31,6 +32,11 @@ constexpr char MARKER_FILE[] = "/.crosspoint/chytanka_welcome.txt";
 // shuffle bag, OpdsServerStore's seed flag), never by CrossInk.
 constexpr char QUOTE_HISTORY_FILE[] = "/.crosspoint/chytanka_quotes.bin";
 constexpr char OPDS_SEEDED_KEY[] = "\"chytankaCatalogueSeeded\"";
+// Written on every boot of 1.6.0.1 and later (BookCacheUtils.cpp's one-time
+// cover-thumbnail reset marker), before Home; not by stock CrossInk. Catches a
+// 1.6.0.1 device that never slept on a quote card and whose OPDS list was
+// full, so neither trace above exists.
+constexpr char THUMB_FORMAT_MARKER_FILE[] = "/.crosspoint/thumb_format.bin";
 // CrossPointSettings.cpp: CrossInk's JSON, the CrossPoint JSON it migrates
 // from, and the older binary format (renamed to .bak after migration).
 constexpr const char* LEGACY_SETTINGS_FILES[] = {"/.crosspoint/settings.json", "/.crosspoint/settings.bin",
@@ -48,6 +54,9 @@ constexpr const char* LANGUAGE_EN = "Interface language: Ukrainian";
 constexpr const char* READING_UK = "Рекомендоване для читання";
 constexpr const char* READING_EN = "Reading: Bitter, hyphenation, no text anti-aliasing";
 constexpr const char* READING_DETAIL_UK = "Bitter, переноси, без згладжування тексту";
+constexpr const char* READING_SD_UK = "Переноси, без згладжування тексту";
+constexpr const char* READING_SD_EN = "Hyphenation, no text anti-aliasing";
+constexpr const char* READING_SD_DETAIL_UK = "Ваш шрифт з картки залишиться";
 constexpr const char* APPLY_UK = "Застосувати";
 constexpr const char* APPLY_EN = "Apply";
 constexpr const char* LATER_UK = "Пізніше";
@@ -63,10 +72,13 @@ constexpr int SECTION_GAP = 22;
 
 bool languageIsUkrainian() { return SETTINGS.language == static_cast<uint8_t>(Language::UK); }
 
+bool usesSdFont() { return SETTINGS.sdFontFamilyName[0] != '\0'; }
+
+// An SD-card font is the reader's own choice, so it counts as recommended.
 bool readingIsRecommended() {
-  return SETTINGS.sdFontFamilyName[0] == '\0' &&
-         CrossPointSettings::availableBuiltinFont(SETTINGS.fontFamily) == CrossPointSettings::BITTER &&
-         SETTINGS.hyphenationEnabled != 0 && SETTINGS.textAntiAliasing == 0;
+  const bool fontOk =
+      usesSdFont() || CrossPointSettings::availableBuiltinFont(SETTINGS.fontFamily) == CrossPointSettings::BITTER;
+  return fontOk && SETTINGS.hyphenationEnabled != 0 && SETTINGS.textAntiAliasing == 0;
 }
 
 bool anySettingsFileExists() {
@@ -123,7 +135,8 @@ bool welcomeScreenNeeded() {
   state.markerExists = Storage.exists(MARKER_FILE);
   if (state.markerExists) return false;
   state.settingsFileExists = anySettingsFileExists();
-  state.usedChytankaBefore = Storage.exists(QUOTE_HISTORY_FILE) || opdsWasSeededByChytanka();
+  state.usedChytankaBefore =
+      Storage.exists(QUOTE_HISTORY_FILE) || Storage.exists(THUMB_FORMAT_MARKER_FILE) || opdsWasSeededByChytanka();
   state.languageIsUkrainian = languageIsUkrainian();
   state.readingIsRecommended = readingIsRecommended();
 
@@ -143,19 +156,23 @@ bool welcomeScreenNeeded() {
   return false;
 }
 
-WelcomeActivity::WelcomeActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
-    : Activity("ChytankaWelcome", renderer, mappedInput) {}
+WelcomeActivity::WelcomeActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string resumeBookPath)
+    : Activity("ChytankaWelcome", renderer, mappedInput), resumeBookPath(std::move(resumeBookPath)) {}
 
 void WelcomeActivity::onEnter() {
   Activity::onEnter();
   offerLanguage = !languageIsUkrainian();
   offerReading = !readingIsRecommended();
+  keepSdFont = usesSdFont();
+  // With an SD font the reader has customised reading already: offer, but
+  // do not pre-select.
+  applyReading = !keepSdFont;
   itemCount = 0;
   if (offerLanguage) items[itemCount++] = ITEM_LANGUAGE;
   if (offerReading) items[itemCount++] = ITEM_READING;
   items[itemCount++] = ITEM_APPLY;
   items[itemCount++] = ITEM_LATER;
-  focus = itemCount - 2;  // «Застосувати»: one press applies everything offered
+  focus = itemCount - 1;  // «Пізніше»: changing nothing is the safe default
   inputArmed = false;
   requestUpdate();
 }
@@ -223,20 +240,24 @@ void WelcomeActivity::finishWith(const bool apply) {
     // rewriting every cached book's binary settings at boot would cost SD
     // time for little gain. New books and books without their own settings
     // follow the new defaults.
-    if (SETTINGS.sdFontFamilyName[0] != '\0') {
-      SETTINGS.sdFontFamilyName[0] = '\0';
-      // SD fonts may use point sizes Bitter lacks; snap like the font picker.
-      SETTINGS.readerFontPointSize = CrossPointSettings::getReaderFontPointSize(
-          static_cast<CrossPointSettings::FONT_SIZE>(closestBuiltinFontSizeIndex(SETTINGS.readerFontPointSize)));
-    }
-    SETTINGS.fontFamily = CrossPointSettings::BITTER;
+    // An SD-card font is kept: only a built-in font is switched to Bitter.
+    if (!keepSdFont) SETTINGS.fontFamily = CrossPointSettings::BITTER;
     SETTINGS.hyphenationEnabled = 1;
     SETTINGS.textAntiAliasing = 0;
   }
   if (setLanguage || setReading) SETTINGS.saveToFile();
   LOG_INF("WLC", "Welcome answered: %s (language %d, reading %d)", apply ? "apply" : "later", setLanguage, setReading);
   writeMarker(apply ? "applied" : "later");
-  finish();  // root activity: ActivityManager goes Home
+  if (resumeBookPath.empty()) {
+    finish();  // root activity: ActivityManager goes Home
+    return;
+  }
+  // Continue where the boot would have gone without the welcome: reopen the
+  // book the device slept in, with main.cpp's boot-loop guard.
+  APP_STATE.openEpubPath = "";
+  APP_STATE.readerActivityLoadCount++;
+  APP_STATE.saveToFile();
+  activityManager.goToReader(resumeBookPath);
 }
 
 void WelcomeActivity::render(RenderLock&&) {
@@ -278,16 +299,19 @@ void WelcomeActivity::render(RenderLock&&) {
     drawCheckbox(renderer, side + OPTION_PADDING, y + OPTION_PADDING + (h10 - CHECKBOX_SIZE) / 2,
                  reading ? applyReading : applyLanguage);
     int ty = y + OPTION_PADDING;
+    const char* readingUk = keepSdFont ? READING_SD_UK : READING_UK;
     const std::string uk =
-        renderer.truncatedText(UI_10_FONT_ID, reading ? READING_UK : LANGUAGE_UK, textWidth, EpdFontFamily::BOLD);
+        renderer.truncatedText(UI_10_FONT_ID, reading ? readingUk : LANGUAGE_UK, textWidth, EpdFontFamily::BOLD);
     renderer.drawText(UI_10_FONT_ID, textX, ty, uk.c_str(), true, EpdFontFamily::BOLD);
     ty += h10;
     if (reading) {
-      const std::string detail = renderer.truncatedText(SMALL_FONT_ID, READING_DETAIL_UK, textWidth);
+      const std::string detail =
+          renderer.truncatedText(SMALL_FONT_ID, keepSdFont ? READING_SD_DETAIL_UK : READING_DETAIL_UK, textWidth);
       renderer.drawText(SMALL_FONT_ID, textX, ty, detail.c_str());
       ty += hSmall;
     }
-    const std::string en = renderer.truncatedText(SMALL_FONT_ID, reading ? READING_EN : LANGUAGE_EN, textWidth);
+    const char* readingEn = keepSdFont ? READING_SD_EN : READING_EN;
+    const std::string en = renderer.truncatedText(SMALL_FONT_ID, reading ? readingEn : LANGUAGE_EN, textWidth);
     renderer.drawText(SMALL_FONT_ID, textX, ty, en.c_str());
     y += rowHeight + 10;
   }

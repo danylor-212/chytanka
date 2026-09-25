@@ -1585,8 +1585,13 @@ void setup() {
 #ifdef CHYTANKA
   } else if (chytanka::welcomeScreenNeeded()) {
     // Fork-only: one-time welcome after installing Chytanka over existing
-    // CrossInk settings; it goes Home once answered.
-    activityManager.replaceActivity(std::make_unique<chytanka::WelcomeActivity>(renderer, mappedInputManager));
+    // CrossInk settings. Once answered it continues where this boot would
+    // have gone: the book the device slept in (same test as below), or Home.
+    const bool resumeReader =
+        !(APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
+          mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0);
+    activityManager.replaceActivity(std::make_unique<chytanka::WelcomeActivity>(
+        renderer, mappedInputManager, resumeReader ? APP_STATE.openEpubPath : std::string()));
 #endif
   } else if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
              mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0) {
