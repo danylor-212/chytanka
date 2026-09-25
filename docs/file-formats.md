@@ -303,14 +303,23 @@ Binary layout:
 
 ## `section.bin`
 
-### Version 78
+### Ukrainian text flags (no version change)
 
-Version 78 adds one `bool` after the EPUB render-mode byte: the Ukrainian
-typography setting (`ukrainianTypography`), a cache-busting field like
-hyphenation. It also changes which hyphenator a book uses: books whose
-dc:language is missing or not `uk` but whose text is detected as Ukrainian now
-hyphenate as Ukrainian. Complete files use byte `78`; suspended partials use
-the unused sentinel `0xF2`.
+Builds with the Ukrainian text layer keep the version 77 layout and version
+bytes. They store two flags in the high bits of the render-mode byte (the byte
+after `wordSpacing`); the EPUB render mode itself uses the low six bits
+(`lib/Epub/Epub/SectionHeaderFlags.h`):
+
+- `0x80`: Ukrainian typography was applied (setting on and the book is
+  Ukrainian).
+- `0x40`: the book is hyphenated as Ukrainian because its text was detected as
+  Ukrainian although dc:language is missing or not `uk`.
+
+The header comparison includes the whole byte, so a section built with either
+transform is rebuilt by a build that would not apply it, and vice versa; that
+covers switching between «Читанка» and stock CrossInk in both directions
+without a fork-specific version number that a future upstream release could
+reuse. Sections with neither flag are byte-identical to CrossInk's.
 
 The detection result is cached per book in `sections/lang.bin`: the bytes
 `LNG`, a detector version (`1`) and the result (`0`/`1`). Clearing the

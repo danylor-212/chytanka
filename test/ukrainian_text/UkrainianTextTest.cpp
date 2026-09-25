@@ -172,3 +172,26 @@ TEST(Typography, CodepointCountNeverChanges) {
   typeset(kRussian);
   typeset("abc \"x\" y - z don't");
 }
+
+#include "SectionHeaderFlags.h"
+
+TEST(SectionHeaderFlags, PlainSectionsMatchCrossInkByte) {
+  for (uint8_t mode = 0; mode < EPUB_RENDER_MODE_COUNT; ++mode) {
+    EXPECT_EQ(section_header::renderModeByte(static_cast<EpubRenderMode>(mode), false, false), mode);
+  }
+}
+
+TEST(SectionHeaderFlags, TransformsChangeTheByteInEveryCombination) {
+  const auto mode = EpubRenderMode::Balanced;
+  const uint8_t plain = section_header::renderModeByte(mode, false, false);
+  const uint8_t typography = section_header::renderModeByte(mode, true, false);
+  const uint8_t detected = section_header::renderModeByte(mode, false, true);
+  const uint8_t both = section_header::renderModeByte(mode, true, true);
+  EXPECT_NE(plain, typography);
+  EXPECT_NE(plain, detected);
+  EXPECT_NE(typography, detected);
+  EXPECT_NE(both, typography);
+  EXPECT_NE(both, detected);
+  // The render mode stays readable in the low bits.
+  EXPECT_EQ(both & section_header::RENDER_MODE_MASK, static_cast<uint8_t>(mode));
+}

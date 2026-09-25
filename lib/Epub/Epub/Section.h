@@ -80,6 +80,8 @@ class Section {
   std::string activeBuildTmpSectionPath_;
 
   bool writeSectionFileHeader(const ReaderRenderSpec& spec);
+  // Render mode plus text-transform flags, as stored in the section header.
+  uint8_t headerRenderModeByte(const ReaderRenderSpec& spec) const;
   uint32_t onPageComplete(std::unique_ptr<Page> page);
   bool ensureBuildFileOpen();
   bool finalizeBuild();

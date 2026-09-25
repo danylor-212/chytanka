@@ -5,6 +5,7 @@ add_executable(UkrainianTextTest
 
 target_include_directories(UkrainianTextTest PRIVATE
   ${REPO_ROOT}/lib/Epub/Epub/text
+  ${REPO_ROOT}/lib/Epub/Epub
 )
 
 target_link_libraries(UkrainianTextTest PRIVATE

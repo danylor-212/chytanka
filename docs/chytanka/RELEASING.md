@@ -425,6 +425,11 @@ After every rebase onto a new upstream CrossInk tag:
 8. Web portal: diff `web/` and re-check `web/chytanka/uk.js` (see "Web
    portal in Ukrainian"); `build_web_chytanka.py` fails loudly if the header,
    footer or script slot in `base.html` moved.
+9. Section cache: keep `SECTION_FILE_VERSION` / `SECTION_FILE_PARTIAL_VERSION`
+   exactly as upstream ships them. The Ukrainian text layer does not change the
+   section format; it sets flags in the high bits of the render-mode byte
+   (`lib/Epub/Epub/SectionHeaderFlags.h`, `docs/file-formats.md`). If upstream
+   adds render modes past 63 or repurposes that byte, move the flags.
 
 ## Related
 
