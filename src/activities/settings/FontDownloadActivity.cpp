@@ -1316,7 +1316,8 @@ void FontDownloadActivity::render(RenderLock&&) {
     const char* familyName = activeDownloadFamilyName_.empty() ? "" : activeDownloadFamilyName_.c_str();
 
     std::string statusText = std::string(tr(STR_DOWNLOADING)) + " " + familyName + " (" +
-                             std::to_string(currentFileIndex_ + 1) + "/" + std::to_string(currentFileTotal_) + ")";
+                             std::to_string(std::min(currentFileIndex_ + 1, currentFileTotal_)) + "/" +
+                             std::to_string(currentFileTotal_) + ")";
     renderer.drawCenteredText(UI_10_FONT_ID, centerY - lineHeight, statusText.c_str());
     if (downloadAttemptTotal_ > 1) {
       char attemptText[48];
