@@ -5173,6 +5173,9 @@ async function uploadFile() {
       if (file.name !== originalName) console.log(`[Upload] Renamed from metadata: ${originalName} -> ${file.name}`);
     }
 
+    // Optimize EPUB re-encodes every image; otherwise fix only a progressive cover.
+    if (isEpub && !needsConversion) file = await bakeProgressiveCover(file);
+
     const availableName = reserveAvailableUploadFilename(file.name, usedFileNames);
     if (availableName !== file.name) {
       console.log(`[Upload] Renamed to avoid collision: ${file.name} -> ${availableName}`);
@@ -5630,3 +5633,93 @@ function confirmMove() {
   xhr.send(formData);
 }
 hydrate();
+
+// ---------------------------------------------------------------------------
+// Progressive-JPEG covers
+//
+// The device's JPEG decoder (JPEGDEC) reads a progressive JPEG only at 1/8
+// scale, so a progressive cover (common in Ukrainian store EPUBs) turns into a
+// ~75x100 image that Home and the sleep screen then stretch into a blur. When
+// an EPUB is uploaded without "Optimize EPUB", re-encode just a progressive
+// cover as a baseline JPEG in the browser (canvas encoders write baseline) and
+// re-zip; every other file in the EPUB is left byte-for-byte as it was. Any
+// failure uploads the original file unchanged.
+// ---------------------------------------------------------------------------
+const BASELINE_COVER_MAX_EDGE = 1600;
+const BASELINE_COVER_QUALITY = 0.9;
+
+function isProgressiveJpeg(bytes) {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return false;
+  let i = 2;
+  while (i + 3 < bytes.length) {
+    if (bytes[i] !== 0xff) return false;
+    let marker = bytes[i + 1];
+    while (marker === 0xff && i + 2 < bytes.length) marker = bytes[++i + 1];
+    if (marker === 0xc2 || marker === 0xc6 || marker === 0xca || marker === 0xce) return true;  // SOF2/6/10/14
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) return false;
+    if (marker === 0xd9 || marker === 0xda) return false;
+    i += 2 + ((bytes[i + 2] << 8) | bytes[i + 3]);
+  }
+  return false;
+}
+
+async function reencodeBaselineJpeg(bytes) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: "image/jpeg" }));
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("cover image could not be decoded"));
+      image.src = url;
+    });
+    const scale = Math.min(1, BASELINE_COVER_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", BASELINE_COVER_QUALITY));
+    if (!blob) return null;
+    const out = new Uint8Array(await blob.arrayBuffer());
+    return isProgressiveJpeg(out) ? null : out;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function bakeProgressiveCover(file) {
+  if (typeof JSZip === "undefined" || !file.name.toLowerCase().endsWith(".epub")) return file;
+  try {
+    const zip = await JSZip.loadAsync(file);
+    let changed = false;
+    for (const path of await findEpubCoverImagePaths(zip)) {
+      if (!/\.jpe?g$/i.test(path) || !zip.files[path]) continue;
+      const bytes = await zip.files[path].async("uint8array");
+      if (!isProgressiveJpeg(bytes)) continue;
+      const baseline = await reencodeBaselineJpeg(bytes);
+      if (!baseline) continue;
+      zip.file(path, baseline);
+      changed = true;
+      console.log(`[Upload] Re-encoded progressive cover ${path} as baseline (${bytes.length} -> ${baseline.length} B)`);
+    }
+    if (!changed) return file;
+    const out = new JSZip();
+    if (zip.files["mimetype"]) {
+      out.file("mimetype", await zip.files["mimetype"].async("arraybuffer"), {
+        compression: "STORE",
+        createFolders: false,
+      });
+    }
+    for (const [path, entry] of Object.entries(zip.files)) {
+      if (entry.dir || path === "mimetype") continue;
+      out.file(path, await entry.async("arraybuffer"), { compression: "DEFLATE", createFolders: false });
+    }
+    const blob = await out.generateAsync({ type: "blob", mimeType: "application/epub+zip" });
+    return new File([blob], file.name, { type: file.type, lastModified: file.lastModified });
+  } catch (error) {
+    console.warn(`[Upload] Cover check skipped for ${file.name}: ${error.message}`);
+    return file;
+  }
+}
