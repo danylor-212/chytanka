@@ -301,19 +301,18 @@ def _scan_idx(idx_data: bytes, idx_oft_path: Path, word: str) -> tuple[int, int]
                 while lo < hi:
                     mid = lo + (hi - lo + 1) // 2
                     off = _CSPT_HEADER_SIZE + mid * entry_size
-                    prefix = cspt_data[off:off + prefix_len].rstrip(b"\x00")
-                    if prefix.lower() > target.lower():
+                    raw_prefix = cspt_data[off:off + prefix_len]
+                    prefix = raw_prefix.rstrip(b"\x00")
+                    # A full-length sample may be a truncated longer word; when it
+                    # matches the start of the target, move left (as the firmware does).
+                    truncated_match = len(prefix) == prefix_len and target.lower().startswith(prefix.lower())
+                    if prefix.lower() > target.lower() or truncated_match:
                         hi = mid - 1
                     else:
                         lo = mid
 
                 off = _CSPT_HEADER_SIZE + lo * entry_size
                 start_pos = struct.unpack_from("<I", cspt_data, off + prefix_len)[0]
-                if lo + 1 < entry_count:
-                    next_off = _CSPT_HEADER_SIZE + (lo + 1) * entry_size
-                    end_pos = struct.unpack_from("<I", cspt_data, next_off + prefix_len)[0]
-                else:
-                    end_pos = len(idx_data)
             cspt_used = True
 
     if not cspt_used and idx_oft_path.exists():
@@ -347,6 +346,8 @@ def _scan_idx(idx_data: bytes, idx_oft_path: Path, word: str) -> tuple[int, int]
 
         if entry_word == target:
             return entry_offset, entry_size
+        if entry_word.lower() > target.lower():
+            break
 
     return None
 

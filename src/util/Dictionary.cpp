@@ -387,18 +387,37 @@ int Dictionary::readWordInto(HalFile& file, char* buf, size_t bufSize) {
 // OFT binary search helper
 // ---------------------------------------------------------------------------
 
-// Case-insensitive strcmp for ASCII — used in findPageBounds() because StarDict
-// dictionaries (including wiktionary-derived ones) are sorted case-insensitively.
-// Using plain strcmp would cause the binary search to land on the wrong page for
-// any word whose alphabetic neighbourhood contains mixed-case page boundaries.
+// Dictionary key order. StarDict sorts .idx and .syn with g_ascii_strcasecmp()
+// and breaks ties with strcmp(): bytes are compared one by one after folding
+// ASCII A-Z to a-z, and every other byte (all of UTF-8 Cyrillic, Greek, accented
+// Latin, ...) compares by its raw value. Binary search over the index files
+// must use exactly this rule, so it deliberately does NOT fold Cyrillic: with a
+// Unicode-aware fold, "Київ" would have to sit next to "київ", but StarDict tools
+// put it before every lowercase "к..." word. Case-insensitive lookup for
+// non-ASCII scripts is done by probing lowercased/title-cased spellings instead
+// (see lookupKeyVariants()). Dictionary builders must sort keys by
+//   (ascii_fold(bytes), bytes)
+// which is StarDict's own order; Python's str.lower() is not equivalent.
+static inline int asciiFold(const unsigned char c) { return (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
+
 static int cistrcmp(const char* a, const char* b) {
   while (*a && *b) {
-    int diff = std::tolower(static_cast<unsigned char>(*a)) - std::tolower(static_cast<unsigned char>(*b));
+    const int diff = asciiFold(static_cast<unsigned char>(*a)) - asciiFold(static_cast<unsigned char>(*b));
     if (diff != 0) return diff;
     a++;
     b++;
   }
-  return std::tolower(static_cast<unsigned char>(*a)) - std::tolower(static_cast<unsigned char>(*b));
+  return asciiFold(static_cast<unsigned char>(*a)) - asciiFold(static_cast<unsigned char>(*b));
+}
+
+// True when the first n bytes of a and b are equal under cistrcmp's fold.
+static bool cistrPrefixEqual(const char* a, const char* b, const size_t n) {
+  for (size_t i = 0; i < n; i++) {
+    if (b[i] == '\0' || asciiFold(static_cast<unsigned char>(a[i])) != asciiFold(static_cast<unsigned char>(b[i]))) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // CLEANUP: on Auto-only commit, delete only this line (readCsptEntryCount below stays)
@@ -565,8 +584,19 @@ bool Dictionary::binarySearchCspt(HalFile& cspt, const char* target, uint32_t id
 
     // Null-terminate prefix for cistrcmp (prefix is already null-padded if shorter).
     entry[prefixLen] = '\0';
-    const int cmp = cistrcmp(reinterpret_cast<const char*>(entry), target);
-    if (cmp > 0 || (startBeforeCaseMatches && cmp == 0)) {
+    const char* sample = reinterpret_cast<const char*>(entry);
+    const int cmp = cistrcmp(sample, target);
+    // Sample keys are the first prefixLen BYTES of the sampled word (16 bytes =
+    // only 8 Cyrillic letters). A sample with no NUL padding may be truncated,
+    // and when its bytes equal the start of the target, the full sampled word
+    // can sort on either side of the target ("книжкови|ми" vs "книжковий").
+    // Treat it as "not before the target" so the search moves left; the
+    // forward scan in the caller is not bounded by endByte and walks on from
+    // the earlier sample, so this only costs extra entries, never a miss.
+    // Older .cspt files need no change: the format is the same.
+    const bool truncatedPrefixMatch =
+        cmp <= 0 && entry[prefixLen - 1] != '\0' && cistrPrefixEqual(sample, target, prefixLen);
+    if (cmp > 0 || (startBeforeCaseMatches && cmp == 0) || truncatedPrefixMatch) {
       hi = mid - 1;
     } else {
       lo = mid;
