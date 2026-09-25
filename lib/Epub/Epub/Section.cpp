@@ -626,7 +626,7 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
       embeddedStyle, contentBase, imageBasePath, imageRendering, std::move(tocAnchors), popupFn, cssParser, renderMode,
       buildOptions.isPreview() ? std::string(buildOptions.previewAnchor) : std::string{}, buildOptions.previewMaxPages,
       buildOptions.referenceUnitsAreCharacters);
-  Hyphenator::setPreferredLanguage(epub->getLanguage());
+  Hyphenator::setPreferredLanguage(epub->getTextLanguage());
   bool cancelled = false;
   bool success = false;
   if (cancelBuild()) {
@@ -960,7 +960,7 @@ bool Section::startBuild(const ReaderRenderSpec& spec, const SectionBuildOptions
     return false;
   }
 
-  Hyphenator::setPreferredLanguage(epub->getLanguage());
+  Hyphenator::setPreferredLanguage(epub->getTextLanguage());
   build_ = std::move(ctx);
   if (!build_->parser->beginParse()) {
     LOG_ERR("SCT", "Failed to begin incremental section parse");

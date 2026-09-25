@@ -28,6 +28,7 @@
 #include "Epub/parsers/ContentOpfParser.h"
 #include "Epub/parsers/TocNavParser.h"
 #include "Epub/parsers/TocNcxParser.h"
+#include "Epub/text/UkrainianText.h"
 
 namespace {
 constexpr int kDefaultThumbHeight = 180;
@@ -1149,6 +1150,73 @@ const std::string& Epub::getLanguage() const {
 
   return bookMetadataCache->coreMetadata.language;
 }
+
+namespace {
+// Detection cache: "LNG", format version, result. Bump the version when the
+// detector or its thresholds change so books are re-examined.
+constexpr uint8_t LANGUAGE_CACHE_VERSION = 1;
+constexpr int LANGUAGE_DETECT_MAX_SPINE_ITEMS = 12;
+
+class LanguageSnifferSink final : public Print {
+ public:
+  explicit LanguageSnifferSink(ukrainian_text::LanguageSniffer& sniffer) : sniffer_(sniffer) {}
+  size_t write(uint8_t c) override { return write(&c, 1); }
+  size_t write(const uint8_t* buffer, size_t size) override {
+    if (sniffer_.full()) return 0;  // ends the stream early
+    sniffer_.feed(reinterpret_cast<const char*>(buffer), size);
+    return size;
+  }
+
+ private:
+  ukrainian_text::LanguageSniffer& sniffer_;
+};
+}  // namespace
+
+bool Epub::isUkrainianText() const {
+  if (ukrainianText_ >= 0) return ukrainianText_ == 1;
+  if (ukrainian_text::isUkrainianLanguageTag(getLanguage())) {
+    ukrainianText_ = 1;
+    return true;
+  }
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return false;
+
+  const std::string sectionsDir = cachePath + "/sections";
+  const std::string cacheFile = sectionsDir + "/lang.bin";
+  FsFile file;
+  if (Storage.openFileForRead("EBP", cacheFile, file)) {
+    uint8_t record[5] = {};
+    const bool valid = file.read(record, sizeof(record)) == sizeof(record) && record[0] == 'L' && record[1] == 'N' &&
+                       record[2] == 'G' && record[3] == LANGUAGE_CACHE_VERSION && record[4] <= 1;
+    file.close();
+    if (valid) {
+      ukrainianText_ = static_cast<int8_t>(record[4]);
+      return ukrainianText_ == 1;
+    }
+  }
+
+  const unsigned long start = millis();
+  ukrainian_text::LanguageSniffer sniffer;
+  LanguageSnifferSink sink(sniffer);
+  const int spineCount = std::min(getSpineItemsCount(), LANGUAGE_DETECT_MAX_SPINE_ITEMS);
+  for (int i = 0; i < spineCount && !sniffer.full(); ++i) {
+    readItemContentsToStream(getSpineItem(i).href, sink, 1024, /*allowEarlyStop=*/true);
+  }
+  ukrainianText_ = sniffer.looksUkrainian() ? 1 : 0;
+  LOG_INF("EBP", "Text language: declared '%s', Ukrainian=%d (cyrillic=%u latin=%u uk=%u ru=%u, %lu ms)",
+          getLanguage().c_str(), ukrainianText_, static_cast<unsigned>(sniffer.cyrillicLetters()),
+          static_cast<unsigned>(sniffer.latinLetters()), static_cast<unsigned>(sniffer.ukrainianLetters()),
+          static_cast<unsigned>(sniffer.russianLetters()), millis() - start);
+
+  Storage.mkdir(sectionsDir.c_str());
+  if (Storage.openFileForWrite("EBP", cacheFile, file)) {
+    const uint8_t record[5] = {'L', 'N', 'G', LANGUAGE_CACHE_VERSION, static_cast<uint8_t>(ukrainianText_)};
+    file.write(record, sizeof(record));
+    file.close();
+  }
+  return ukrainianText_ == 1;
+}
+
+std::string Epub::getTextLanguage() const { return isUkrainianText() ? std::string("uk") : getLanguage(); }
 
 bool Epub::hasCoverImage() const {
   return bookMetadataCache && bookMetadataCache->isLoaded() && !bookMetadataCache->coreMetadata.coverItemHref.empty();

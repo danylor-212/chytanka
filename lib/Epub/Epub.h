@@ -71,6 +71,7 @@ class Epub {
  private:
   std::unique_ptr<LocationSpineEntry[]> locationSpine;
   size_t locationSpineCount = 0;
+  mutable int8_t ukrainianText_ = -1;  // -1 unknown, 0 no, 1 yes
   mutable OptimizerFormat::Record optimizerLastHit;
   mutable std::unique_ptr<PxcV2Workspace> optimizerWorkspace;
   uint16_t optimizerIndexCount = 0;
@@ -133,6 +134,16 @@ class Epub {
   const std::string& getTitle() const;
   const std::string& getAuthor() const;
   const std::string& getLanguage() const;
+  // True when the book's text is Ukrainian: declared as "uk" in dc:language,
+  // or detected from the first few KB of chapter text when the declaration is
+  // missing or different ("und", "ru", "en" on Ukrainian books is common).
+  // Detection runs once per book; the result is cached in the sections
+  // directory, so it is redone whenever the section cache is cleared.
+  // Requires load().
+  bool isUkrainianText() const;
+  // Language used for hyphenation and typography: "uk" when isUkrainianText(),
+  // otherwise the declared dc:language.
+  std::string getTextLanguage() const;
   // True when parsed EPUB metadata identifies a cover image. Requires load().
   bool hasCoverImage() const;
   std::string getCoverBmpPath(bool cropped = false, bool imageLevels = false) const;
