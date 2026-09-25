@@ -13,9 +13,14 @@
 #include "components/CompactHeader.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "network/ChytankaNetworkNames.h"
 
 namespace {
+#ifdef CHYTANKA
+constexpr const char* HOSTNAME = CHYTANKA_MDNS_HOSTNAME;
+#else
 constexpr const char* HOSTNAME = "crosspoint";
+#endif
 }  // namespace
 
 void CalibreConnectActivity::onEnter() {
