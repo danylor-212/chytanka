@@ -30,11 +30,22 @@
 #include "WebDAVHandler.h"
 #include "WifiCredentialStore.h"
 #include "activities/boot_sleep/ImageFolderIndex.h"
+#ifdef CHYTANKA
+// Fork-only: the same pages with Chytanka's header/footer and the /i18n.js
+// loader (scripts/chytanka/build_web_chytanka.py), same identifiers.
+#include "html/LogoPng.generated.h"
+#include "html/chytanka/FilesPageHtml.generated.h"
+#include "html/chytanka/FontsPageHtml.generated.h"
+#include "html/chytanka/HomePageHtml.generated.h"
+#include "html/chytanka/SettingsPageHtml.generated.h"
+#include "network/ChytankaWebI18n.h"
+#else
 #include "html/FilesPageHtml.generated.h"
 #include "html/FontsPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
 #include "html/LogoPng.generated.h"
 #include "html/SettingsPageHtml.generated.h"
+#endif
 #include "html/StyleCss.generated.h"
 #include "html/js/jszip_minJs.generated.h"
 #include "util/BookCacheUtils.h"
@@ -353,6 +364,9 @@ void CrossPointWebServer::begin() {
   server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJszip(); });
   server->on("/style.css", HTTP_GET, [this] { handleStyleCss(); });
   server->on("/logo.png", HTTP_GET, [this] { handleLogo(); });
+#ifdef CHYTANKA
+  server->on("/i18n.js", HTTP_GET, [this] { chytanka::sendPortalI18n(*server); });
+#endif
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });

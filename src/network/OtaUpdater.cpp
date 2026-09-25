@@ -23,6 +23,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(ProgressCallback, void*, s
 #include "esp_http_client.h"
 #include "esp_ota_ops.h"
 #include "mbedtls/sha256.h"
+#include "network/ChytankaNetworkNames.h"
 #include "network/HttpDownloader.h"
 #include "network/WifiPowerSaveGuard.h"
 
@@ -307,7 +308,11 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
     return INTERNAL_UPDATE_ERROR;
   }
 
+#ifdef CHYTANKA
+  esp_err = esp_http_client_set_header(client_handle, "User-Agent", CHYTANKA_USER_AGENT);
+#else
   esp_err = esp_http_client_set_header(client_handle, "User-Agent", "CrossInk-ESP32-" CROSSINK_VERSION);
+#endif
   if (esp_err != ESP_OK) {
     LOG_ERR("OTA", "esp_http_client_set_header Failed : %s", esp_err_to_name(esp_err));
     esp_http_client_cleanup(client_handle);

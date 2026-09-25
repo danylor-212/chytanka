@@ -24,6 +24,7 @@
 #include "components/UIThemeTokens.h"
 #include "components/UiAppHelpers.h"
 #include "fontIds.h"
+#include "network/ChytankaNetworkNames.h"
 
 namespace fui = freeink::ui;
 
@@ -697,7 +698,11 @@ void WifiSelectionActivity::attemptConnection() {
   // Set hostname so routers show "CrossPoint-Reader-AABBCCDDEEFF" instead of "esp32-XXXXXXXXXXXX"
   String mac = WiFi.macAddress();
   mac.replace(":", "");
+#ifdef CHYTANKA
+  String hostname = CHYTANKA_DHCP_HOSTNAME_PREFIX + mac;
+#else
   String hostname = "CrossPoint-Reader-" + mac;
+#endif
   WiFi.setHostname(hostname.c_str());
 
   wl_status_t beginStatus = WL_IDLE_STATUS;

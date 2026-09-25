@@ -20,13 +20,22 @@
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "network/ChytankaNetworkNames.h"
 #include "util/QrUtils.h"
 
 namespace {
 // AP Mode configuration
+#ifdef CHYTANKA
+constexpr const char* AP_SSID = CHYTANKA_AP_SSID;
+#else
 constexpr const char* AP_SSID = "CrossPoint-Reader";
+#endif
 constexpr const char* AP_PASSWORD = nullptr;  // Open network for ease of use
+#ifdef CHYTANKA
+constexpr const char* AP_HOSTNAME = CHYTANKA_MDNS_HOSTNAME;
+#else
 constexpr const char* AP_HOSTNAME = "crosspoint";
+#endif
 constexpr uint8_t AP_CHANNEL = 1;
 constexpr uint8_t AP_MAX_CONNECTIONS = 4;
 constexpr int QR_CODE_WIDTH = 198;

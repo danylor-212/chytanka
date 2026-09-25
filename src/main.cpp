@@ -93,6 +93,7 @@ inline esp_sleep_wakeup_cause_t esp_sleep_get_wakeup_cause() { return ESP_SLEEP_
 #include "activities/boot_sleep/ImageFolderIndex.h"
 #ifdef CHYTANKA
 #include "activities/boot_sleep/ChytankaBrand.h"
+#include "activities/home/ChytankaWelcomeActivity.h"
 #endif
 #include "activities/home/BookActions.h"
 #include "activities/reader/KOReaderSyncActivity.h"
@@ -1581,6 +1582,12 @@ void setup() {
     // by network screens. Keep X3's existing full refresh behavior unchanged.
     const auto homeRefreshMode = gpio.deviceIsX3() ? HalDisplay::FULL_REFRESH : HalDisplay::HALF_REFRESH;
     activityManager.goHome(HomeMenuItem::NONE, homeRefreshMode);
+#ifdef CHYTANKA
+  } else if (chytanka::welcomeScreenNeeded()) {
+    // Fork-only: one-time welcome after installing Chytanka over existing
+    // CrossInk settings; it goes Home once answered.
+    activityManager.replaceActivity(std::make_unique<chytanka::WelcomeActivity>(renderer, mappedInputManager));
+#endif
   } else if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
              mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0) {
     // Boot to home screen if no book is open, last sleep was not from reader, back button is held, or reader activity

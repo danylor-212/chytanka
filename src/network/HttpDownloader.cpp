@@ -18,6 +18,7 @@
 #include <utility>
 
 #include "AppVersion.h"
+#include "network/ChytankaNetworkNames.h"
 #include "network/HttpRedirectPolicy.h"
 #include "network/WifiPowerSaveGuard.h"
 
@@ -103,7 +104,11 @@ struct Sink {
 
 void setRequestHeaders(esp_http_client_handle_t client, const std::string& username, const std::string& password,
                        size_t resumeOffset, bool sendAuthorization) {
+#ifdef CHYTANKA
+  esp_http_client_set_header(client, "User-Agent", CHYTANKA_USER_AGENT);
+#else
   esp_http_client_set_header(client, "User-Agent", "CrossInk-ESP32-" CROSSINK_VERSION);
+#endif
   esp_http_client_set_header(client, "Connection", "close");
   if (resumeOffset > 0) {
     char rangeHeader[40];
@@ -154,7 +159,11 @@ HttpDownloader::DownloadError runGetWolfSsl(const std::string& url, const std::s
     }
     // Replace SecureHttpClient's built-in User-Agent so strict servers receive
     // exactly one header while retaining CrossInk's device/version identity.
+#ifdef CHYTANKA
+    http.setUserAgent(CHYTANKA_USER_AGENT);
+#else
     http.setUserAgent("CrossInk-ESP32-" CROSSINK_VERSION);
+#endif
     if (sink.resumeOffset > 0) {
       char rangeHeader[40];
       snprintf(rangeHeader, sizeof(rangeHeader), "bytes=%zu-", sink.resumeOffset);

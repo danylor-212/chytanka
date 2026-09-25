@@ -4,6 +4,8 @@
 // quote cards embedded in flash. Only compiled in when the build defines
 // CHYTANKA.
 
+#include <string>
+
 class GfxRenderer;
 
 namespace chytanka {
@@ -14,6 +16,11 @@ namespace chytanka {
 // allocation failed, corrupt data, grayscale base refused); the caller then
 // draws its own screen. Decode failures surface in the first (B/W) pass,
 // before anything is sent to the panel.
-bool renderQuoteCardSleepScreen(GfxRenderer& renderer, bool turnOffScreen);
+//
+// With a non-empty `readingTitle` the card also gets a small line above its
+// brand footer, «Читаєте: <title> · 25%» ("Reading: ..." in any other UI
+// language); `progressPercent` < 0 leaves the percentage out.
+bool renderQuoteCardSleepScreen(GfxRenderer& renderer, bool turnOffScreen, const std::string& readingTitle = {},
+                                float progressPercent = -1.0f);
 
 }  // namespace chytanka

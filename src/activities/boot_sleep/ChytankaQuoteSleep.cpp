@@ -7,6 +7,7 @@
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
 #include <HalStorage.h>
+#include <I18n.h>
 #include <Logging.h>
 #include <Memory.h>
 
@@ -14,7 +15,9 @@
 #include <cstring>
 
 #include "ChytankaQuoteDecoder.h"
+#include "ChytankaReadingLine.h"
 #include "CrossPointSettings.h"
+#include "fontIds.h"
 
 namespace chytanka {
 
@@ -103,9 +106,52 @@ bool drawCardPass(GfxRenderer& renderer, QuoteCardDecoder& decoder, const int ca
   return decoder.finish();
 }
 
+// "Currently reading" line, in card coordinates. The cards
+// (brand/quotes/make_cards.py) put their text at x = 44 and the brand footer
+// (logo + wordmark) from y = H - 62 = 738 down to 770; the quote and
+// attribution end at y = 683 at the latest (all 50 cards). The line sits in
+// between, left-aligned with the text, in the card's secondary style: Bitter
+// italic in the level the attribution uses (1 = dark gray, light on a dark
+// card). Rows 796-799 stay background (cropped on the X3).
+constexpr int READING_LINE_FONT_ID = BITTER_10_FONT_ID;
+constexpr EpdFontFamily::Style READING_LINE_STYLE = EpdFontFamily::ITALIC;
+constexpr int READING_LINE_X = 44;
+constexpr int READING_LINE_RIGHT = QUOTE_CARD_WIDTH - 44;
+constexpr int READING_LINE_FOOTER_TOP = QUOTE_CARD_HEIGHT - 62;
+constexpr int READING_LINE_FOOTER_GAP = 14;
+constexpr uint8_t READING_LINE_LEVEL = 1;
+
+// Draws the line for the renderer's current pass so that it ends up at
+// `level` like a card pixel of that level would: the B/W pass inks every
+// non-white level; gray passes write the plane bits grayPlanePixel() gives.
+// Glyphs are drawn solid (no anti-aliasing): the renderer draws text in the
+// B/W style whenever the gray planes are absolute, and a relative plane is
+// written with the render mode briefly set to B/W (setRenderMode() only does
+// extra work when leaving absolute planes, which this path never does).
+void drawReadingLinePass(GfxRenderer& renderer, const std::string& line, const int x, const int y,
+                         const uint8_t level) {
+  if (line.empty()) return;
+  const GfxRenderer::RenderMode mode = renderer.getRenderMode();
+  if (mode == GfxRenderer::BW) {
+    renderer.drawText(READING_LINE_FONT_ID, x, y, line.c_str(), level < 3, READING_LINE_STYLE);
+    return;
+  }
+  const bool absolute = renderer.grayPlanesAreAbsolute();
+  const GrayPlanePixel pixel = grayPlanePixel(level, mode == GfxRenderer::GRAYSCALE_MSB, absolute);
+  if (!pixel.write) return;
+  if (absolute) {
+    renderer.drawText(READING_LINE_FONT_ID, x, y, line.c_str(), pixel.black, READING_LINE_STYLE);
+    return;
+  }
+  renderer.setRenderMode(GfxRenderer::BW);
+  renderer.drawText(READING_LINE_FONT_ID, x, y, line.c_str(), pixel.black, READING_LINE_STYLE);
+  renderer.setRenderMode(mode);
+}
+
 }  // namespace
 
-bool renderQuoteCardSleepScreen(GfxRenderer& renderer, const bool turnOffScreen) {
+bool renderQuoteCardSleepScreen(GfxRenderer& renderer, const bool turnOffScreen, const std::string& readingTitle,
+                                const float progressPercent) {
   // Cards are portrait-only. SleepActivity sets Portrait before drawing; if a
   // future path does not, fall back to the brand block (which lays out in any
   // orientation) rather than changing the renderer's orientation behind the
@@ -136,6 +182,23 @@ bool renderQuoteCardSleepScreen(GfxRenderer& renderer, const bool turnOffScreen)
   // Dark (CrossInk's default) shows the card inverted; Light as designed. The
   // levels are swapped in every pass, so the gray planes stay correct.
   const bool inverted = SETTINGS.sleepScreen != CrossPointSettings::SLEEP_SCREEN_MODE::LIGHT;
+  const auto filter = SETTINGS.sleepScreenCoverFilter;
+
+  // Built once, drawn in every pass. With a black & white cover filter there
+  // are no gray passes, so the line is drawn in full ink instead of gray (a
+  // gray line on a dark card would otherwise vanish in the B/W pass).
+  const int readingMaxWidth = std::min(READING_LINE_RIGHT, renderer.getScreenWidth() - x0) - READING_LINE_X;
+  const std::string readingLine = buildReadingLine(
+      readingTitle, readingLinePercent(progressPercent), I18N.getLanguage() == Language::UK,
+      [&](const std::string& candidate) {
+        return renderer.getTextWidth(READING_LINE_FONT_ID, candidate.c_str(), READING_LINE_STYLE) <= readingMaxWidth;
+      });
+  const uint8_t readingLevel = quoteCardLevel(
+      filter == CrossPointSettings::SLEEP_SCREEN_COVER_FILTER::NO_FILTER ? READING_LINE_LEVEL : 0, inverted);
+  const int readingX = x0 + READING_LINE_X;
+  const int readingY =
+      y0 + READING_LINE_FOOTER_TOP - READING_LINE_FOOTER_GAP - renderer.getLineHeight(READING_LINE_FONT_ID);
+  if (!readingLine.empty()) LOG_INF("SLP", "Quote card reading line: %s", readingLine.c_str());
 
   // Background (and margins) = clear value, see quoteCardClearByte().
   renderer.clearScreen(quoteCardClearByte(false, false, inverted));
@@ -143,11 +206,11 @@ bool renderQuoteCardSleepScreen(GfxRenderer& renderer, const bool turnOffScreen)
     LOG_ERR("SLP", "Quote card %d (id %u) failed to decode", card, QUOTE_CARDS[card].quoteId);
     return false;
   }
+  drawReadingLinePass(renderer, readingLine, readingX, readingY, readingLevel);
   LOG_INF("SLP", "Quote card %d (id %u), B/W pass %lu ms, free heap %u", card, QUOTE_CARDS[card].quoteId,
           millis() - startMs, ESP.getFreeHeap());
 
   // From here on: the display sequence of SleepActivity::renderBitmapSleepScreen().
-  const auto filter = SETTINGS.sleepScreenCoverFilter;
   if (filter == CrossPointSettings::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
     renderer.invertScreen();
   }
@@ -175,6 +238,7 @@ bool renderQuoteCardSleepScreen(GfxRenderer& renderer, const bool turnOffScreen)
       renderer.setRenderMode(GfxRenderer::BW);
       return false;
     }
+    drawReadingLinePass(renderer, readingLine, readingX, readingY, readingLevel);
     if (mode == GfxRenderer::GRAYSCALE_LSB) {
       renderer.copyGrayscaleLsbBuffers();
     } else {
