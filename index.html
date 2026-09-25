@@ -78,7 +78,7 @@
   <div>
     <h1>Читанка</h1>
     <p class="lede">Українська прошивка для електронних читалок Xteink X4 і X3 — на основі CrossInk і CrossPoint.</p>
-    <span class="version">версія 1.6.0.1</span>
+    <span class="version">версія 1.6.0.2</span>
   </div>
 </header>
 
@@ -128,7 +128,7 @@ esptool --chip esp32c3 --port /dev/ttyACM0 --baud 921600 read-flash 0 ALL x4-bac
   <li>У списку портів виберіть <strong>«USB JTAG/serial debug unit»</strong> (у Windows — «USB Serial Device (COMx)»; ідентифікатор виробника <code>303a</code>) і натисніть «Підключитися» / «Connect».</li>
   <li>Натисніть <strong>«Install Читанка…»</strong>. У вікні «Erase device» <strong>не ставте галочку</strong> — тоді налаштування й дані збережуться — і натисніть «Next», потім «Install».</li>
   <li><strong>Зачекайте</strong> 1–3 хвилини, поки індикатор дійде до кінця. Не від'єднуйте кабель і не закривайте вкладку.</li>
-  <li><strong>Перезапуск.</strong> Якщо читалка не перезапустилася сама, від'єднайте й знову під'єднайте кабель, коротко натисніть кнопку <strong>Reset</strong> і одразу затисніть <strong>кнопку живлення</strong> на 3–5 секунд. З'явиться екран Читанки з написом «версія 1.6.0.1-ua».</li>
+  <li><strong>Перезапуск.</strong> Якщо читалка не перезапустилася сама, від'єднайте й знову під'єднайте кабель, коротко натисніть кнопку <strong>Reset</strong> і одразу затисніть <strong>кнопку живлення</strong> на 3–5 секунд. З'явиться екран Читанки з написом «версія 1.6.0.2-ua».</li>
 </ol>
 
 <h2>Якщо порт не з'являється або підключення не вдається</h2>
@@ -146,9 +146,10 @@ esptool --chip esp32c3 --port /dev/ttyACM0 --baud 921600 read-flash 0 ALL x4-bac
 
 <h2>Після встановлення</h2>
 <ul>
-  <li><strong>Мова.</strong> На новому пристрої інтерфейс одразу український. Якщо раніше стояв CrossInk або CrossPoint, пристрій пам'ятає збережену мову: <em>Settings → System → Device → Language → Українська</em>.</li>
+  <li><strong>Вітальний екран.</strong> Якщо раніше стояв CrossInk або CrossPoint з іншою мовою чи налаштуваннями, Читанка один раз запропонує перемкнути інтерфейс на українську й увімкнути рекомендовані налаштування читання. «Пізніше» нічого не змінює. Мову можна змінити й пізніше: <em>Налаштування → Система → Пристрій → Мова</em> (<em>Settings → System → Device → Language</em>).</li>
   <li><strong>Згладжування.</strong> Читанка радить вимкнути його: текст стає чіткішим, а сторінки гортаються за одне оновлення екрана. Якщо налаштування лишилися від попередньої прошивки, вимкніть вручну: <em>Налаштування → Читання → Параметри шрифту → Згладжування тексту</em>.</li>
-  <li><strong>Книжки.</strong> Каталог «Читанка — Книжки» вже є в списку OPDS: 65 книжок української класики, завантаження по Wi‑Fi.</li>
+  <li><strong>Книжки.</strong> Каталог «Читанка — Книжки» вже є в списку OPDS: безкоштовна українська класика, завантаження по Wi‑Fi.</li>
+  <li><strong>Словники й шрифти.</strong> Українсько-англійський і англійсько-український словники Вікісловника: <a href="https://github.com/danylor-212/chytanka-dicts">chytanka-dicts</a> (розпакуйте в <code>/.dictionaries/</code> і виберіть «Вікісловник укр-англ» у <em>Налаштування → Читання → Словник</em>). 16 шрифтів з повною українською абеткою: <em>Налаштування → Читання → Параметри шрифту → Завантажити шрифти</em>.</li>
   <li>Обкладинки один раз перегенеруються, а книжки під час першого відкриття можуть заново розбитися на сторінки — це нормально.</li>
 </ul>
 
@@ -175,7 +176,7 @@ esptool --chip esp32c3 --port /dev/ttyACM0 --baud 921600 read-flash 0 ALL x4-bac
   </tbody>
 </table>
 </div>
-<p>У esptool-js: <em>Baudrate</em> 921600 → <em>Connect</em> → додайте чотири рядки «Flash Address + файл» → <em>Program</em>. Кнопку <em>Erase Flash</em> <strong>не натискайте</strong>: вона зітре налаштування. Контрольні суми — у <a href="firmware/latest/SHA256SUMS">SHA256SUMS</a>.</p>
+<p>У esptool-js: <em>Baudrate</em> 921600 → <em>Connect</em> → додайте чотири рядки «Flash Address + файл» → <em>Program</em>. Кнопку <em>Erase Flash</em> <strong>не натискайте</strong>: вона зітре налаштування. Контрольні суми — у <a href="firmware/latest/SHA256SUMS">SHA256SUMS</a>. Попередні версії лежать у <code>firmware/v…/</code> (наприклад, <a href="firmware/v1.6.0.1/manifest.json">v1.6.0.1</a>) і в <a href="https://github.com/danylor-212/chytanka/releases">релізах</a>.</p>
 <pre><code>esptool --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write-flash \
   0x0 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 firmware-x3-x4.bin</code></pre>
 
