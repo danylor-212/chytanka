@@ -236,11 +236,15 @@ files, so stock CrossInk keeps «Темний» / «Світлий».
   headers (~583 KB). Value 0 stays reserved in the `FONT_FAMILY` enum, so saved
   settings and per-book caches load; `availableBuiltinFont()` maps it to
   Bitter everywhere (settings load, per-book settings, font ID lookup).
-- **SD font catalogue.** The manifest is CrossInk's remote `fonts.json`, so
-  `FontDownloadActivity.cpp` hides families client-side
-  (`chytankaHidesFontFamily()`): a list checked against each family's source
-  TTF cmap, plus "no Cyrillic in the manifest languages" for families added
-  later. Re-check the list when the catalogue changes (`sd-fonts.yaml`).
+- **SD font catalogue.** `[env:ua]` sets `FONT_MANIFEST_URL` to the Chytanka
+  catalogue on GitHub Pages
+  (`https://danylor-212.github.io/chytanka-fonts/m1-b4/fonts.json`, repo
+  `danylor-212/chytanka-fonts`, built from its `sd-fonts.yaml` with this
+  repo's `lib/EpdFont/scripts/build-sd-fonts.py`). The `m1-b4` prefix must be
+  rebuilt and bumped whenever `FONTS_MANIFEST_VERSION` or `CPFONT_VERSION`
+  changes. HTTPS catalogues download through wolfSSL. The client-side filter
+  (`chytankaHidesFontFamily()`) stays as a safety net; it accepts
+  "Cyrillic" or «кирилиця» in the manifest languages.
 - **Keyboards.** `keyboard_layouts::AVAILABLE_BITS` keeps English and
   Ukrainian. Persisted bit positions are unchanged (bit 0 English, bit 5
   Ukrainian); other bits in a saved `keyboardLayouts` are ignored. The layout

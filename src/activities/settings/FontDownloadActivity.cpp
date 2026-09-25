@@ -27,6 +27,7 @@
 #include "fontIds.h"
 #include "network/HttpDownloader.h"
 #include "util/LocaleFormat.h"
+#include "util/UrlUtils.h"
 
 namespace fui = freeink::ui;
 
@@ -54,7 +55,8 @@ Rect downloadCancelButtonRect(const GfxRenderer& renderer, const ThemeMetrics& m
 // families that cannot set Ukrainian text in their own glyphs are hidden here.
 // Checked against each family's source TTF cmap (А–Я а–я Ґґ Єє Іі Її ’ « »
 // plus ASCII) on 2026-09-23. A family added to the catalogue later is listed
-// only when its manifest "languages" mentions Cyrillic.
+// only when its manifest "languages" mentions Cyrillic («кирилиця» in the
+// Chytanka catalogue, which lists only such families).
 bool chytankaHidesFontFamily(const char* name, const char* languages) {
   static constexpr const char* kLackingUkrainian[] = {"AtkinsonHyperlegibleNext", "Lexend Deca", "LexicaUltralegible",
                                                       "LibreBaskerville", "SourceCodePro"};
@@ -66,13 +68,20 @@ bool chytankaHidesFontFamily(const char* name, const char* languages) {
   for (const char* verified : kVerifiedUkrainian) {
     if (strcmp(name, verified) == 0) return false;
   }
-  return strstr(languages, "Cyrillic") == nullptr;
+  return strstr(languages, "Cyrillic") == nullptr && strstr(languages, "кирилиц") == nullptr;
 }
 #endif
 
 constexpr int FONT_DOWNLOAD_MAX_ATTEMPTS = 3;
 constexpr int FONT_MANIFEST_MAX_ATTEMPTS = 5;
 constexpr uint32_t FONT_DOWNLOAD_RETRY_DELAY_MS = 500;
+
+// A catalogue hosted over HTTPS (a FONT_MANIFEST_URL override, e.g. GitHub
+// Pages) goes through wolfSSL, as OPDS and OTA downloads do: esp_http_client
+// HTTPS stalls on the ESP32-C3. The stock plain-HTTP S3 catalogue is unchanged.
+HttpDownloader::Transport fontDownloadTransport(const std::string& url) {
+  return UrlUtils::isHttpsUrl(url) ? HttpDownloader::Transport::WOLFSSL : HttpDownloader::Transport::ESP_HTTP;
+}
 
 bool isGitHubReleaseAssetBaseUrl(const std::string& baseUrl) {
   return baseUrl.rfind("https://github.com/", 0) == 0 && baseUrl.find("/releases/download/") != std::string::npos;
@@ -311,6 +320,7 @@ bool FontDownloadActivity::fetchAndParseManifest() {
   // retry delays do not swallow the press.
   HttpDownloader::DownloadOptions manifestOptions;
   manifestOptions.shouldCancel = [this]() { return pollCancelInput(false); };
+  manifestOptions.transport = fontDownloadTransport(FONT_MANIFEST_URL);
   // The font list is fetched again after individual updates. Release registry
   // memory on every manifest load, not only when entering Manage Fonts.
   sdFontSystem.releaseForNetwork(renderer);
@@ -880,6 +890,7 @@ void FontDownloadActivity::downloadFamily(ManifestFamily& family) {
     HttpDownloader::DownloadOptions downloadOptions;
     downloadOptions.preservePartial = true;
     downloadOptions.resumePartial = true;
+    downloadOptions.transport = fontDownloadTransport(url);
     // Poll Back and the touch Cancel controls from shouldCancel, which
     // HttpDownloader checks at the top of every read-loop iteration. The
     // progress callback is throttled to every 64KB / 250ms, so polling input
