@@ -554,16 +554,18 @@ def extract_kerning_fonttools(font_path, codepoints, ppem, pnum_subs=None):
     units_per_em = font['head'].unitsPerEm
     cmap = font.getBestCmap() or {}
 
-    # Build glyph_name -> codepoint map (only for requested codepoints).
+    # Build glyph_name -> codepoints map (only for requested codepoints).
+    # Several codepoints can share one glyph (e.g. U+2019 and U+02BC in
+    # Inter); every one of them gets the glyph's kerning.
     # When pnum is active, include both the original and substitute glyph
     # names so kern pairs referencing either are captured.
     glyph_to_cp = {}
-    for cp in codepoints:
+    for cp in sorted(codepoints):
         gname = cmap.get(cp)
         if gname:
-            glyph_to_cp[gname] = cp
+            glyph_to_cp.setdefault(gname, []).append(cp)
             if pnum_subs and gname in pnum_subs:
-                glyph_to_cp[pnum_subs[gname]] = cp
+                glyph_to_cp.setdefault(pnum_subs[gname], []).append(cp)
 
     # Collect raw kerning values in font design units
     raw_kern = {}  # (left_glyph_name, right_glyph_name) -> design_units
@@ -600,11 +602,12 @@ def extract_kerning_fonttools(font_path, codepoints, ppem, pnum_subs=None):
     scale = ppem / units_per_em
     result = {}  # (leftCp, rightCp) -> 4.4 fixed-point adjust
     for (lg, rg), du in raw_kern.items():
-        lcp = glyph_to_cp[lg]
-        rcp = glyph_to_cp[rg]
         adjust = fp4_from_design_units(du, scale)
-        if adjust != 0:
-            result[(lcp, rcp)] = adjust
+        if adjust == 0:
+            continue
+        for lcp in glyph_to_cp[lg]:
+            for rcp in glyph_to_cp[rg]:
+                result[(lcp, rcp)] = adjust
     return result
 
 # The ppem used by the existing glyph rasterization:
