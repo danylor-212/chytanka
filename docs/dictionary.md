@@ -80,9 +80,9 @@ Set a shortcut to **Look Up Word** in **Settings -> Controls**. Holding that sho
 
 When you select a word, the reader searches for it in this order:
 
-1. **Direct match** - the word is found as-is in the dictionary index.
-2. **Stemming** - the reader automatically tries common word forms (plurals, verb conjugations, comparatives). For example, "running" finds "run".
-3. **Alternate forms** - if the dictionary includes a synonym/alternate forms file and no match was found yet, a prompt appears. Press **Confirm** to search alternate forms, or **Back** to skip.
+1. **Direct match** - the word is found in the dictionary index. Besides the exact spelling, the reader tries the word in lowercase (for Latin and Cyrillic, including Ukrainian Ґ Є І Ї) and with only its first letter capitalised, so "Книжка" at the start of a sentence finds "книжка" and "КИЇВ" finds "Київ". Apostrophes (' ` ´ ʼ ‘ ’) are treated as the same character and stress marks (combining acute accent) are ignored.
+2. **Stemming** - the reader automatically tries common English word forms (plurals, verb conjugations, comparatives). For example, "running" finds "run".
+3. **Alternate forms** - if the dictionary includes a synonym/alternate forms file (`.syn`) and no match was found yet, the reader looks the word up there and shows the entry it points to, such as the dictionary form of an inflected word ("книжками" shows "книжка"). This happens automatically when the `.syn` file has a `.syn.oft` or `.syn.oft.cspt` accelerator. Without one, searching a large `.syn` file can be slow, so a prompt appears instead: press **Confirm** to search alternate forms, or **Back** to skip.
 4. **Suggestions** - if nothing matched, a list of similar words from the dictionary is shown. Select one to view its definition.
 5. **Not found** - if no matches or suggestions exist, a not-found message appears. Press **Back** to return to word-select, or **Confirm** to exit to the reader.
 
