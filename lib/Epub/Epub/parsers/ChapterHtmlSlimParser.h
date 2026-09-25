@@ -22,6 +22,7 @@
 #include "Epub/css/CssParser.h"
 #include "Epub/css/CssStyle.h"
 #include "Epub/tables/CompactTableLayout.h"
+#include "Epub/text/UkrainianText.h"
 
 class GfxRenderer;
 class Epub;
@@ -85,6 +86,10 @@ class ChapterHtmlSlimParser {
   uint16_t viewportWidth;
   uint16_t viewportHeight;
   bool hyphenationEnabled;
+  // Ukrainian typography layer for Ukrainian books (see UkrainianText.h).
+  bool ukrainianTypographyEnabled_ = false;
+  ukrainian_text::Typography typography_;
+  std::string typographyBuffer_;
   bool focusReadingEnabled;
   bool guideReadingEnabled;
   uint8_t wordSpacing;
@@ -361,4 +366,7 @@ class ChapterHtmlSlimParser {
   // between beginParse() and finishParse()/abortParse().
   size_t parseBytesConsumed() { return parseFile_ ? parseFile_.position() : parseFileOffset_; }
   size_t parseTotalBytes() { return parseFileSize_; }
+  // Applies the Ukrainian typography layer to this chapter's text. Set before
+  // beginParse(); the caller decides (setting on and the book is Ukrainian).
+  void setUkrainianTypography(const bool enabled) { ukrainianTypographyEnabled_ = enabled; }
 };

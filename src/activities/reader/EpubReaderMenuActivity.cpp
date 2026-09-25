@@ -77,6 +77,7 @@ struct ReaderLayoutSettingsSnapshot {
   uint8_t paragraphAlignment;
   uint8_t embeddedStyle;
   uint8_t hyphenationEnabled;
+  uint8_t ukrainianTypography;
   uint8_t textAntiAliasing;
   uint8_t imageRendering;
   uint8_t extraParagraphSpacing;
@@ -102,6 +103,7 @@ ReaderLayoutSettingsSnapshot captureReaderLayoutSettings() {
       SETTINGS.paragraphAlignment,
       SETTINGS.embeddedStyle,
       SETTINGS.hyphenationEnabled,
+      SETTINGS.ukrainianTypography,
       SETTINGS.textAntiAliasing,
       SETTINGS.imageRendering,
       SETTINGS.extraParagraphSpacing,
@@ -132,6 +134,7 @@ ReaderSettingsChangeMask classifyReaderSettingsChange(const ReaderLayoutSettings
       before.publisherPageNumbers != after.publisherPageNumbers ||
       before.paragraphAlignment != after.paragraphAlignment || before.embeddedStyle != after.embeddedStyle ||
       before.hyphenationEnabled != after.hyphenationEnabled ||
+      before.ukrainianTypography != after.ukrainianTypography ||
       before.extraParagraphSpacing != after.extraParagraphSpacing ||
       before.forceParagraphIndents != after.forceParagraphIndents ||
       before.focusReadingEnabled != after.focusReadingEnabled ||

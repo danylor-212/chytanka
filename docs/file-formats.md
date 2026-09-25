@@ -303,6 +303,19 @@ Binary layout:
 
 ## `section.bin`
 
+### Version 78
+
+Version 78 adds one `bool` after the EPUB render-mode byte: the Ukrainian
+typography setting (`ukrainianTypography`), a cache-busting field like
+hyphenation. It also changes which hyphenator a book uses: books whose
+dc:language is missing or not `uk` but whose text is detected as Ukrainian now
+hyphenate as Ukrainian. Complete files use byte `78`; suspended partials use
+the unused sentinel `0xF2`.
+
+The detection result is cached per book in `sections/lang.bin`: the bytes
+`LNG`, a detector version (`1`) and the result (`0`/`1`). Clearing the
+section cache re-runs detection.
+
 ### Version 77
 
 Version 77 keeps the serialized layout unchanged. It was bumped because ordered

@@ -772,6 +772,7 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
   }
 
   nextWordContinues = false;  // New block = new paragraph, no continuation
+  typography_.resetBlock();
   if (currentTextBlock) {
     // already have a text block running and it is empty - just reuse it
     if (currentTextBlock->isEmpty()) {
@@ -3073,16 +3074,28 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     self->currentFootnote.number[self->currentFootnoteLinkTextLen] = '\0';
   }
 
+  // Ukrainian typography replaces codepoints one for one, so every visible and
+  // reference offset below still matches the source text. Reference counting
+  // reads the original codepoints (a no-break space must not change it).
+  const XML_Char* const source = s;
+  const auto* sourceCursor = reinterpret_cast<const unsigned char*>(source);
+  const XML_Char* text = s;
+  int textLen = len;
+  if (self->ukrainianTypographyEnabled_ && !self->syntheticCharacterData) {
+    self->typography_.apply(s, static_cast<size_t>(len), self->typographyBuffer_);
+    text = self->typographyBuffer_.data();
+    textLen = static_cast<int>(self->typographyBuffer_.size());
+  }
+
   uint32_t codepointOffset = callbackVisibleOffset;
   uint32_t codepointReferenceOffset = self->referenceTextOffset;
-  for (int i = 0; i < len; i++) {
-    const bool startsCodepoint = (static_cast<uint8_t>(s[i]) & 0xC0) != 0x80;
+  for (int i = 0; i < textLen; i++) {
+    const bool startsCodepoint = (static_cast<uint8_t>(text[i]) & 0xC0) != 0x80;
     if (startsCodepoint && countReferenceCharacters && !self->collectingRubyText) {
-      const auto* codepointPtr = reinterpret_cast<const unsigned char*>(s + i);
-      const uint32_t codepoint = utf8NextCodepoint(&codepointPtr);
+      const uint32_t codepoint = utf8NextCodepoint(&sourceCursor);
       codepointReferenceOffset = self->consumeReferenceCodepoint(codepoint);
     }
-    if (isWhitespace(s[i])) {
+    if (isWhitespace(text[i])) {
       // Currently looking at whitespace, if there's anything in the partWordBuffer, flush it
       if (self->partWordBufferIndex > 0) {
         self->flushPartWordBuffer();
@@ -3112,7 +3125,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     //   between "200" and "Quadratkilometer". However, "Quadratkilometer" is now a
     //   standalone word for hyphenation purposes, so Liang patterns can produce
     //   "200 Quadrat-" / "kilometer" instead of the unusable "200" / "Quadratkilometer".
-    if (static_cast<uint8_t>(s[i]) == 0xC2 && i + 1 < len && static_cast<uint8_t>(s[i + 1]) == 0xA0) {
+    if (static_cast<uint8_t>(text[i]) == 0xC2 && i + 1 < textLen && static_cast<uint8_t>(text[i + 1]) == 0xA0) {
       if (self->partWordBufferIndex > 0) {
         self->flushPartWordBuffer();
       }
@@ -3133,8 +3146,8 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     }
 
     // U+202F (narrow no-break space) — identical logic to U+00A0 above.
-    if (static_cast<uint8_t>(s[i]) == 0xE2 && i + 2 < len && static_cast<uint8_t>(s[i + 1]) == 0x80 &&
-        static_cast<uint8_t>(s[i + 2]) == 0xAF) {
+    if (static_cast<uint8_t>(text[i]) == 0xE2 && i + 2 < textLen && static_cast<uint8_t>(text[i + 1]) == 0x80 &&
+        static_cast<uint8_t>(text[i + 2]) == 0xAF) {
       if (self->partWordBufferIndex > 0) {
         self->flushPartWordBuffer();
       }
@@ -3159,9 +3172,9 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     const XML_Char FEFF_BYTE_2 = static_cast<XML_Char>(0xBB);
     const XML_Char FEFF_BYTE_3 = static_cast<XML_Char>(0xBF);
 
-    if (s[i] == FEFF_BYTE_1) {
+    if (text[i] == FEFF_BYTE_1) {
       // Check if the next two bytes complete the 3-byte sequence
-      if ((i + 2 < len) && (s[i + 1] == FEFF_BYTE_2) && (s[i + 2] == FEFF_BYTE_3)) {
+      if ((i + 2 < textLen) && (text[i + 1] == FEFF_BYTE_2) && (text[i + 2] == FEFF_BYTE_3)) {
         // Sequence 0xEF 0xBB 0xBF found!
         i += 2;    // Skip the next two bytes
         continue;  // Move to the next iteration
@@ -3211,7 +3224,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
       self->partWordVisibleOffset = codepointOffset;
       self->partWordReferenceOffset = codepointReferenceOffset;
     }
-    self->partWordBuffer[self->partWordBufferIndex++] = s[i];
+    self->partWordBuffer[self->partWordBufferIndex++] = text[i];
     if (startsCodepoint && countVisibleOffsets) codepointOffset++;
   }
 

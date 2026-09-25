@@ -680,6 +680,8 @@ inline const std::vector<SettingInfo>& getBaseSettingsList() {
                             StrId::STR_CAT_READER));
     add(SettingInfo::Toggle(StrId::STR_HYPHENATION, &CrossPointSettings::hyphenationEnabled, "hyphenationEnabled",
                             StrId::STR_CAT_READER));
+    add(SettingInfo::Toggle(StrId::STR_UKRAINIAN_TYPOGRAPHY, &CrossPointSettings::ukrainianTypography,
+                            "ukrainianTypography", StrId::STR_CAT_READER));
     add(SettingInfo::Toggle(StrId::STR_TEXT_AA, &CrossPointSettings::textAntiAliasing, "textAntiAliasing",
                             StrId::STR_CAT_READER));
     add(SettingInfo::Enum(StrId::STR_IMAGES, &CrossPointSettings::imageRendering,
@@ -1167,11 +1169,12 @@ inline std::vector<SettingInfo> buildReaderFontSettingsList(const std::vector<Se
 
 inline std::vector<SettingInfo> buildReaderPageLayoutSettingsList(const std::vector<SettingInfo>& allSettings) {
   std::vector<SettingInfo> settings;
-  settings.reserve(6);
+  settings.reserve(7);
   addSettingByName(settings, allSettings, StrId::STR_ORIENTATION);
   addSettingByName(settings, allSettings, StrId::STR_SCREEN_MARGIN);
   addSettingByName(settings, allSettings, StrId::STR_PARA_ALIGNMENT);
   addSettingByName(settings, allSettings, StrId::STR_HYPHENATION);
+  addSettingByName(settings, allSettings, StrId::STR_UKRAINIAN_TYPOGRAPHY);
   addSettingByName(settings, allSettings, StrId::STR_EXTRA_SPACING);
   addSettingByName(settings, allSettings, StrId::STR_FORCE_PARAGRAPH_INDENTS);
   return settings;

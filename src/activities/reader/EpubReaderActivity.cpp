@@ -7506,6 +7506,7 @@ void EpubReaderActivity::refreshChapterGroupEstimate(const uint16_t viewportWidt
   mix(SETTINGS.forceParagraphIndents);
   mix(SETTINGS.paragraphAlignment);
   mix(SETTINGS.hyphenationEnabled);
+  mix(SETTINGS.ukrainianTypography);
   mix(SETTINGS.embeddedStyle);
   mix(SETTINGS.imageRendering);
   mix(SETTINGS.focusReadingEnabled);

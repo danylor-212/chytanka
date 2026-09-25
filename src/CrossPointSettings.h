@@ -570,6 +570,12 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
   uint8_t hyphenationEnabled = 0;
+  // Ukrainian typography layer (ʼ, «», —, no-break spaces) for Ukrainian books.
+#ifdef CHYTANKA
+  uint8_t ukrainianTypography = 1;
+#else
+  uint8_t ukrainianTypography = 0;
+#endif
 
   // Reader screen margins. Legacy single-axis settings initialize both values.
   uint8_t screenMarginVertical = 5;

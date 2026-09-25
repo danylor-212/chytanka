@@ -21,6 +21,8 @@ struct ReaderRenderSpec {
   uint16_t viewportWidth = 0;
   uint16_t viewportHeight = 0;
   bool hyphenationEnabled = false;
+  // Ukrainian typography layer, applied only to books whose text is Ukrainian.
+  bool ukrainianTypography = false;
   bool embeddedStyle = true;
   uint8_t imageRendering = 0;
   bool focusReadingEnabled = false;
@@ -43,6 +45,7 @@ inline uint32_t readerRenderSpecSignature(const ReaderRenderSpec& spec) {
   mix(spec.viewportWidth);
   mix(spec.viewportHeight);
   mix(spec.hyphenationEnabled);
+  mix(spec.ukrainianTypography);
   mix(spec.embeddedStyle);
   mix(spec.imageRendering);
   mix(spec.focusReadingEnabled);
