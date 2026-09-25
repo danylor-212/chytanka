@@ -157,6 +157,10 @@ class DictionaryLookupController {
   FoundStatus foundStatus = FoundStatus::Direct;
   bool nextIsSuggestion = false;
   bool lookupMatchedStem = false;
+  // Set by the worker before lookupDone: the word resolved through .syn, and
+  // whether .syn was already searched automatically (so no prompt is needed).
+  bool lookupMatchedAltForm = false;
+  bool altFormsSearched = false;
   bool recordHistory_ = true;
   bool lookupToastEnabled_ = true;
   bool fullScreenChildWasShown_ = false;

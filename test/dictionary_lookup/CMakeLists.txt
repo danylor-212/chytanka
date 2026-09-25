@@ -20,3 +20,12 @@ target_link_libraries(DictionaryLookupTest PRIVATE
   GTest::gtest_main
 )
 gtest_discover_tests(DictionaryLookupTest)
+
+# Not part of ctest: measures lookup cost on a real prepared dictionary.
+#   DictionaryLookupBench <folder>/<stem> [--all]
+add_executable(DictionaryLookupBench
+  DictionaryLookupBench.cpp
+  ${DICTIONARY_LOOKUP_SOURCES}
+)
+target_include_directories(DictionaryLookupBench PRIVATE ${DICTIONARY_LOOKUP_INCLUDES})
+target_link_libraries(DictionaryLookupBench PRIVATE crosspoint_test_common)
