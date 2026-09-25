@@ -42,8 +42,10 @@ MUSIC_SYMBOL_INTERVALS=(
 
 # Letterlike symbols outside the default set that Cyrillic-language books use.
 # The primary faces (Bitter, Lexend Deca, Inter) carry them natively.
+# 0x02BC: Modifier letter apostrophe (ʼ), the Ukrainian apostrophe (мʼята)
 # 0x2116: Numero sign (№), e.g. "№ 5" on Ukrainian imprint pages
 EXTRA_TEXT_INTERVALS=(
+  --additional-intervals 0x02BC,0x02BC
   --additional-intervals 0x2116,0x2116
 )
 
