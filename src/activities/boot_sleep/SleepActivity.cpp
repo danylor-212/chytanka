@@ -646,8 +646,21 @@ void SleepActivity::renderCustomSleepScreen() const {
 void SleepActivity::renderDefaultSleepScreen() const {
 #ifdef CHYTANKA
   // Chytanka's default sleep screen is an embedded quote card; the brand block
-  // below stays as the fallback when the card cannot be drawn.
-  if (chytanka::renderQuoteCardSleepScreen(renderer, TURN_OFF_SCREEN_AFTER_SLEEP_REFRESH)) return;
+  // below stays as the fallback when the card cannot be drawn. With a book
+  // open (or last read) the card also names it and its progress.
+  std::string readingTitle;
+  float readingPercent = -1.0f;
+  const std::string& readingPath = currentBookPath.empty() ? APP_STATE.openEpubPath : currentBookPath;
+  if (!readingPath.empty() && Storage.exists(readingPath.c_str())) {
+    RECENT_BOOKS.ensureLoaded();
+    const RecentBook book = recentBookForPath(readingPath);
+    readingTitle = book.title;
+    readingPercent = RecentBookProgress::loadPercent(book);
+  }
+  if (chytanka::renderQuoteCardSleepScreen(renderer, TURN_OFF_SCREEN_AFTER_SLEEP_REFRESH, readingTitle,
+                                           readingPercent)) {
+    return;
+  }
 #endif
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
