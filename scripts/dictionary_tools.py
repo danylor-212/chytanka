@@ -56,6 +56,18 @@ _CSPT_HEADER_SIZE = 12
 _CSPT_ENTRY_SIZE = _CSPT_PREFIX_LEN + 4  # 20 bytes
 
 
+def stardict_sort_key(word: str) -> tuple[bytes, bytes]:
+    """StarDict key order: g_ascii_strcasecmp(), ties broken by strcmp().
+
+    The firmware binary-searches .idx/.syn/.oft/.cspt with exactly this rule:
+    UTF-8 bytes compared after folding ASCII A-Z only (bytes.lower() is
+    ASCII-only). Do not use str.lower(): it folds Cyrillic and other scripts,
+    which moves "Київ" next to "київ" and breaks on-device binary search.
+    """
+    raw = word.encode("utf-8")
+    return (raw.lower(), raw)
+
+
 def _build_cspt(src_data: bytes, oft_data: bytes, skip_per_entry: int = 8) -> bytes:
     """Build .cspt from .idx/.syn data and matching .oft data.
 
@@ -462,7 +474,7 @@ def merge(sources: list[Path], output: Path) -> None:
                 all_syns.append((syn_word, target_idx, src_idx))
 
     # Sort headwords once (just strings, no payloads)
-    sorted_words = sorted(word_entries.keys(), key=lambda w: (w.lower(), w))
+    sorted_words = sorted(word_entries.keys(), key=stardict_sort_key)
 
     # Build merged output
     merged_defs: list[bytes] = []
@@ -503,7 +515,7 @@ def merge(sources: list[Path], output: Path) -> None:
             new_target = index_remap.get((src_idx, orig_target))
             if new_target is not None:
                 remapped.append((syn_word, new_target))
-        remapped.sort(key=lambda e: (e[0].lower(), e[0]))
+        remapped.sort(key=lambda e: stardict_sort_key(e[0]))
         if remapped:
             syn_bytes = b""
             for syn_word, target in remapped:
