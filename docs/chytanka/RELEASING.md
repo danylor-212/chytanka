@@ -105,10 +105,8 @@ anywhere:
   default — is now exactly 20 bytes, so it no longer arrives over the
   editor's own limit. Confirming without editing saves cleanly.
 - **Web UI, hostname/mDNS, AP SSID, User-Agent, BLE**: none of these read
-  `getEffectiveDeviceName()`/`getDefaultDeviceName()` at all. Wi-Fi
-  hostname/mDNS/AP name are the fixed strings `"crosspoint"` /
-  `"CrossPoint-Reader-<mac>"` (`CrossPointWebServerActivity.cpp`,
-  `CalibreConnectActivity.cpp`, `WifiSelectionActivity.cpp`); OTA/download
+  `getEffectiveDeviceName()`/`getDefaultDeviceName()` at all. They are fixed
+  strings, Chytanka's own under `CHYTANKA` (see "Network names" below); the
   User-Agent uses `CROSSINK_VERSION`, not the device name; there is no
   Bluetooth/BLE code in this repo.
 
@@ -267,6 +265,110 @@ counts as present. Stock CrossInk ignores (and drops) that key. If the list is
 full (8 servers) nothing is added and the flag stays unset, so it is tried
 again once there is room.
 
+## Network names (`CHYTANKA`)
+
+`src/network/ChytankaNetworkNames.h` holds the names; each call site keeps
+CrossInk's value in its `#else` branch.
+
+| What | Chytanka | Stock CrossInk | Where |
+| --- | --- | --- | --- |
+| mDNS hostname | `chytanka` (`http://chytanka.local/`) | `crosspoint` | `CrossPointWebServerActivity.cpp` (`AP_HOSTNAME`, also the URL and QR code on screen), `CalibreConnectActivity.cpp` |
+| Hotspot SSID | `Chytanka` | `CrossPoint-Reader` | `CrossPointWebServerActivity.cpp` (`AP_SSID`, also shown and in the Wi-Fi QR code) |
+| DHCP hostname (joined network) | `Chytanka-<MAC12>` | `CrossPoint-Reader-<MAC12>` | `WifiSelectionActivity.cpp` |
+| HTTP User-Agent | `Chytanka/<version> (CrossInk)` | `CrossInk-ESP32-<version>` | `HttpDownloader.cpp` (both clients), `OtaUpdater.cpp` |
+
+The hotspot SSID has no MAC suffix, like stock. `Chytanka-` + 12 hex digits
+is 21 bytes, under the 32-byte limit for both an SSID and an esp_netif
+hostname. Left alone on purpose: the UDP discovery reply
+`crosspoint (on <hostname>);<port>` in `CrossPointWebServer.cpp` (a protocol
+string companion apps match on) and the NVS namespace `crosspoint`. No
+translation string mentions the hostname; CrossInk's own docs under `docs/`
+still say `crosspoint.local`.
+
+## Web portal in Ukrainian (`CHYTANKA`)
+
+The portal pages are CrossInk's static English HTML/JS (`web/`), gzipped into
+flash by `scripts/build_web.py`. Chytanka keeps them and translates in the
+browser:
+
+- `scripts/chytanka/build_web_chytanka.py` (pre-script of the `ua` and
+  `ua-simulator*` envs only) imports `build_web.py`, composes the same four
+  pages with the Chytanka header (inline SVG logo, «Читанка» wordmark), the
+  footer «Читанка · based on CrossInk · Open Source» and a
+  `<script src="/i18n.js">` before each page's script, and writes them to
+  `src/network/html/chytanka/` under the stock identifiers.
+  `CrossPointWebServer.cpp` includes those instead of the stock headers under
+  `#ifdef CHYTANKA`. The script fails the build if `base.html`'s `<h1>`,
+  footer or `{{ script }}` slot changes, so a rebase cannot silently ship
+  CrossInk's chrome.
+- `/i18n.js` (`src/network/ChytankaWebI18n.cpp`) serves `web/chytanka/uk.js`
+  or `en.js` plus the translator `web/chytanka/i18n.js`, chosen by the device
+  UI language at request time (`no-cache` + per-language ETag, so switching
+  the language takes effect on reload).
+- The translator replaces text nodes and `placeholder`/`title`/`aria-label`
+  by exact match on the trimmed English text (a leading emoji/symbol prefix
+  is kept), uses regular expressions for messages with numbers or names
+  (Ukrainian plurals for the folder summary), watches the DOM for everything
+  the page scripts add later, and wraps `alert`/`confirm`/`prompt`. File,
+  folder, font and network names are never translated (`NO_TRANSLATE`).
+  Settings names and options already come from the device in the UI language.
+- Not translated: the EPUB optimizer's detailed conversion log, messages the
+  device sends as plain text (mostly errors), and the browser's own file
+  picker ("Choose files"), which follows the browser language.
+- **Rebase:** any English string CrossInk changes in `web/pages/*` silently
+  stays English. Diff `web/` after a rebase and update `uk.js`.
+- Flash: the Chytanka pages are ~1.7 KB (gz) larger than stock, the tables +
+  translator ~7.7 KB (uk 6.3 KB, en 1.4 KB); the `ua` image grew 19,024 bytes
+  in 1.6.0.2 for all four UX items together.
+
+## First-run welcome (`CHYTANKA`)
+
+`chytanka::welcomeScreenNeeded()` (`src/activities/home/ChytankaWelcomeActivity.cpp`)
+runs in `main.cpp`'s routing just before the normal Home/reader branch (not
+on silent/network/crash boots) and decides with `decideWelcome()`
+(`ChytankaWelcome.h`, host-tested):
+
+- marker `/.crosspoint/chytanka_welcome.txt` present: nothing;
+- no settings file (`crossink-settings.json`, CrossPoint's `settings.json`,
+  `settings.bin[.bak]`): a fresh card already has Chytanka's defaults, write
+  the marker silently;
+- traces of an earlier Chytanka (`chytanka_quotes.bin`, or
+  `"chytankaCatalogueSeeded"` in `opds.json`): marker, no screen;
+- UI already Ukrainian and reading settings already Bitter + hyphenation on +
+  anti-aliasing off: marker, no screen;
+- otherwise the welcome replaces Home for this boot.
+
+The screen is bilingual (Ukrainian first, English below), offers only what
+differs (interface language; Bitter + hyphenation + no text anti-aliasing),
+each as a tick box, with «Застосувати» (focused) and «Пізніше» buttons. Keys:
+Up/Down (side or Left/Right) move, Confirm toggles a box or presses a button,
+Back = «Пізніше»; button hints follow the current UI language. Input is
+ignored until all buttons have been released once, so a key held through boot
+cannot answer it. Either answer writes the marker (`applied`/`later`) and goes
+Home. Applying the reading settings changes the global defaults only: books
+with their own reader settings file keep them (they were chosen for that book,
+and rewriting every book's binary settings at boot is SD time for little
+gain); an SD font selection is cleared and its point size snapped to Bitter's
+like the font picker does.
+
+## Reading line on the quote card (`CHYTANKA`)
+
+`SleepActivity::renderDefaultSleepScreen()` passes the open (or last read)
+book's title and progress (`recentBookForPath()`,
+`RecentBookProgress::loadPercent()`; nothing when the book file is gone) to
+`renderQuoteCardSleepScreen()`, which draws «Читаєте: <title> · 25%»
+("Reading: ..." in any other UI language) at x = 44, ending 14 px above the
+card's brand footer (y = H − 62): rows 701–721 on the X4, between the lowest
+quote text of all 50 cards (y = 683) and the footer (739), clear of rows
+796–799. `buildReadingLine()` (`ChytankaReadingLine.h`, host-tested) shortens
+the title code point by code point with "…" to fit 392 px, keeping the label
+and percentage. Style: Bitter 10 italic in the attribution's level (dark gray;
+light gray on the dark card). It is drawn in every pass: ink in the B/W pass,
+and the plane bits `grayPlanePixel()` gives for its level in the gray passes
+(relative planes via a brief switch to B/W mode, since text in a gray render
+mode only draws anti-aliasing pixels). With a B/W cover filter there are no
+gray passes, so it is drawn in full ink instead.
+
 ## Rebase checklist
 
 After every rebase onto a new upstream CrossInk tag:
@@ -315,6 +417,10 @@ After every rebase onto a new upstream CrossInk tag:
    LSB/MSB planes) and the per-pixel rule in `GfxRenderer::drawBitmap()`
    against `drawCardPass()`. If upstream changed either, mirror it so the
    embedded cards keep looking exactly like an SD sleep BMP.
+
+8. Web portal: diff `web/` and re-check `web/chytanka/uk.js` (see "Web
+   portal in Ukrainian"); `build_web_chytanka.py` fails loudly if the header,
+   footer or script slot in `base.html` moved.
 
 ## Related
 
