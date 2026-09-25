@@ -33,6 +33,19 @@ bool utf8ContainsLookupCharacter(const std::string& text);
 // the firmware's compact composition table has a matching entry.
 std::string utf8CleanLookupWord(const std::string& text);
 
+// Simple one-to-one lowercase mappings (no locale, no special casing such as
+// Turkish dotless i or final sigma).
+//   utf8ToLowerLatin:    ASCII A-Z, Latin-1 Supplement, Latin Extended-A, Ÿ, ẞ
+//   utf8ToLowerCyrillic: U+0400..U+052F, including Ukrainian Ґ Є І Ї
+//   utf8ToLowerCodepoint: ASCII + Cyrillic + Latin combined
+uint32_t utf8ToLowerLatin(uint32_t cp);
+uint32_t utf8ToLowerCyrillic(uint32_t cp);
+uint32_t utf8ToLowerCodepoint(uint32_t cp);
+
+// Lowercase a UTF-8 string with utf8ToLowerCodepoint(). Malformed bytes are
+// copied unchanged. Returns the input unchanged when nothing needs folding.
+std::string utf8ToLower(const std::string& in);
+
 // Truncate a raw char buffer to the last complete UTF-8 codepoint boundary.
 // Returns the new length (<= len). If the buffer ends mid-sequence, the
 // incomplete trailing bytes are excluded.
