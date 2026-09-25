@@ -37,6 +37,7 @@ constexpr char OPDS_SEEDED_KEY[] = "\"chytankaCatalogueSeeded\"";
 // 1.6.0.1 device that never slept on a quote card and whose OPDS list was
 // full, so neither trace above exists.
 constexpr char THUMB_FORMAT_MARKER_FILE[] = "/.crosspoint/thumb_format.bin";
+bool thumbMarkerExistedAtBoot = false;
 // CrossPointSettings.cpp: CrossInk's JSON, the CrossPoint JSON it migrates
 // from, and the older binary format (renamed to .bak after migration).
 constexpr const char* LEGACY_SETTINGS_FILES[] = {"/.crosspoint/settings.json", "/.crosspoint/settings.bin",
@@ -130,13 +131,31 @@ void drawCheckbox(const GfxRenderer& renderer, const int x, const int y, const b
 
 }  // namespace
 
+void captureEarlierInstallTraces() { thumbMarkerExistedAtBoot = Storage.exists(THUMB_FORMAT_MARKER_FILE); }
+
+// "pending": the welcome was shown but not answered yet (power loss, sleep).
+// This boot's own traces (the thumbnail marker) exist by then, so the
+// decision is not re-made; the screen simply shows again.
+bool markerIsPending() {
+  FsFile file;
+  if (!Storage.openFileForRead("WLC", MARKER_FILE, file)) return false;
+  char head[8] = {};
+  const int n = file.read(reinterpret_cast<uint8_t*>(head), sizeof(head) - 1);
+  file.close();
+  return n >= 7 && strncmp(head, "pending", 7) == 0;
+}
+
 bool welcomeScreenNeeded() {
   WelcomeState state;
   state.markerExists = Storage.exists(MARKER_FILE);
-  if (state.markerExists) return false;
+  if (state.markerExists) {
+    if (!markerIsPending()) return false;
+    LOG_INF("WLC", "Showing welcome again (not answered yet)");
+    return true;
+  }
   state.settingsFileExists = anySettingsFileExists();
   state.usedChytankaBefore =
-      Storage.exists(QUOTE_HISTORY_FILE) || Storage.exists(THUMB_FORMAT_MARKER_FILE) || opdsWasSeededByChytanka();
+      Storage.exists(QUOTE_HISTORY_FILE) || thumbMarkerExistedAtBoot || opdsWasSeededByChytanka();
   state.languageIsUkrainian = languageIsUkrainian();
   state.readingIsRecommended = readingIsRecommended();
 
@@ -151,6 +170,7 @@ bool welcomeScreenNeeded() {
     case WelcomeDecision::Show:
       LOG_INF("WLC", "Showing welcome (language uk=%d, reading recommended=%d)", state.languageIsUkrainian,
               state.readingIsRecommended);
+      writeMarker("pending");
       return true;
   }
   return false;
@@ -193,6 +213,9 @@ void WelcomeActivity::loop() {
     return;
   }
   if (mappedInput.wasPressed(Button::Confirm)) {
+    // The release must not reach Home or the resumed reader (it would open a
+    // book or the reader menu).
+    mappedInput.suppressNextConfirmRelease();
     activate();
     return;
   }

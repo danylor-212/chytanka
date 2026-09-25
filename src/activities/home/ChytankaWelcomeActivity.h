@@ -21,6 +21,11 @@ namespace chytanka {
 // (fresh SD card, earlier Chytanka release, nothing to offer).
 bool welcomeScreenNeeded();
 
+// Boot hook (main.cpp), called before this boot writes any files of its own:
+// records which traces of an earlier Chytanka release were already on the SD
+// card (this build writes the same thumbnail marker at every boot).
+void captureEarlierInstallTraces();
+
 class WelcomeActivity final : public Activity {
  public:
   // resumeBookPath: the book this boot would have reopened (the sleep-from-

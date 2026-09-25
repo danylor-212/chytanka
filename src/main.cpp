@@ -1339,6 +1339,9 @@ void setup() {
   SETTINGS.loadFromFile();
   Storage.installDateTimeCallback(&SETTINGS.clockUtcOffsetQ);
   APP_STATE.loadFromFile();
+#ifdef CHYTANKA
+  chytanka::captureEarlierInstallTraces();  // before the purge writes its marker
+#endif
   purgeStaleCoverThumbnails();
   mirrorWakeShortPressToNvs();
   // Needs SETTINGS for the clock's UTC offset, so it cannot run any earlier.

@@ -332,28 +332,35 @@ runs in `main.cpp`'s routing just before the normal Home/reader branch (not
 on silent/network/crash boots) and decides with `decideWelcome()`
 (`ChytankaWelcome.h`, host-tested):
 
-- marker `/.crosspoint/chytanka_welcome.txt` present: nothing;
+- marker `/.crosspoint/chytanka_welcome.txt` present: nothing, unless it says
+  `pending` (shown but not answered yet), then the screen shows again;
 - no settings file (`crossink-settings.json`, CrossPoint's `settings.json`,
   `settings.bin[.bak]`): a fresh card already has Chytanka's defaults, write
   the marker silently;
-- traces of an earlier Chytanka (`chytanka_quotes.bin`, or
-  `"chytankaCatalogueSeeded"` in `opds.json`): marker, no screen;
-- UI already Ukrainian and reading settings already Bitter + hyphenation on +
-  anti-aliasing off: marker, no screen;
-- otherwise the welcome replaces Home for this boot.
+- traces of an earlier Chytanka: `chytanka_quotes.bin`,
+  `"chytankaCatalogueSeeded"` in `opds.json`, or `thumb_format.bin` (the cover
+  thumbnail marker 1.6.0.1+ writes on every boot). The thumbnail marker is
+  checked by `captureEarlierInstallTraces()` before this boot's own purge
+  writes it: marker, no screen;
+- UI already Ukrainian and reading already recommended (Bitter or any SD-card
+  font, hyphenation on, anti-aliasing off): marker, no screen;
+- otherwise the marker becomes `pending` and the welcome replaces Home for
+  this boot.
 
 The screen is bilingual (Ukrainian first, English below), offers only what
-differs (interface language; Bitter + hyphenation + no text anti-aliasing),
-each as a tick box, with «Застосувати» (focused) and «Пізніше» buttons. Keys:
-Up/Down (side or Left/Right) move, Confirm toggles a box or presses a button,
-Back = «Пізніше»; button hints follow the current UI language. Input is
-ignored until all buttons have been released once, so a key held through boot
-cannot answer it. Either answer writes the marker (`applied`/`later`) and goes
-Home. Applying the reading settings changes the global defaults only: books
-with their own reader settings file keep them (they were chosen for that book,
-and rewriting every book's binary settings at boot is SD time for little
-gain); an SD font selection is cleared and its point size snapped to Bitter's
-like the font picker does.
+differs (interface language; reading settings), each as a tick box, with
+«Застосувати» and «Пізніше» (focused: the default changes nothing) buttons.
+Keys: Up/Down (side or Left/Right) move, Confirm toggles a box or presses a
+button, Back = «Пізніше»; button hints follow the current UI language. Input
+is ignored until all buttons have been released once, so a key held through
+boot cannot answer it, and the answering Confirm release is suppressed.
+Either answer writes the marker (`applied`/`later`) and continues where the
+boot would have gone: the book the device slept in (main.cpp's resume test,
+with its boot-loop guard) or Home. Applying the reading settings changes the
+global defaults only: books with their own reader settings file keep them.
+With a built-in font the option switches to Bitter, turns hyphenation on and
+anti-aliasing off (pre-ticked). With an SD-card font the font is kept: the
+option only offers hyphenation and anti-aliasing off, unticked.
 
 ## Reading line on the quote card (`CHYTANKA`)
 
